@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { audioSynth } from '../utils/audio';
 import { questionsData } from '../data/questions';
 import FeedbackOverlay from './FeedbackOverlay';
+import ClassroomLeaderboard from './ClassroomLeaderboard';
 
 interface LevelSelectionScreenProps {
   unlockedLevels: number[];
@@ -457,6 +458,15 @@ export default function LevelSelectionScreen({
           })}
         </div>
       </main>
+
+      {/* Live Classroom Leaderboard & Setup Guide */}
+      <div className="w-full max-w-5xl mx-auto mt-10 px-4 z-10">
+        <ClassroomLeaderboard
+          currentStudentName={studentName}
+          currentStudentClass={studentClass}
+          currentStudentNumber={studentNumber}
+        />
+      </div>
 
       {/* Final Report Card Overlay Modal */}
       <AnimatePresence>
