@@ -1,0 +1,6 @@
+{
+  "name": "CT Challenge",
+  "description": "เกมการศึกษาแบบโต้ตอบเพื่อส่งเสริมทักษะการคิดเชิงคำนวณ (Computational Thinking) สำหรับนักเรียนชั้นมัธยมศึกษาปีที่ 2 เรื่อง แนวคิดเชิงคำนวณ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
