@@ -6,7 +6,7 @@ import {
   Play, Cpu, HelpCircle as QuestionIcon, Square,
   CloudRain, Umbrella, CheckCircle2, ChevronRight,
   BookOpen, Heart, Filter, ArrowRight, Repeat,
-  Trophy, Activity, LogOut, Wifi
+  Trophy, Activity, LogOut, Wifi, ShoppingBag, Store
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -454,62 +454,21 @@ export default function LevelVisuals({ visualType, activeStep = 0 }: LevelVisual
           </div>
         </div>
       )}
-
-      {/* 12. FLOWCHART (ผังงาน) */}
-      {visualType === 'flowchart' && (
-        <div className="flex flex-col items-center justify-center gap-3.5 z-10 w-full px-6">
-          <div className="flex items-center gap-2.5 justify-center p-3.5 bg-slate-950 rounded-2xl border border-slate-800 shadow-lg">
-            <div className="px-2.5 py-1 bg-indigo-950 border border-indigo-500/30 text-indigo-300 rounded-full text-[9px] font-mono shadow-sm">
-              Terminal (เริ่ม/จบ)
-            </div>
-            <span className="text-slate-600 font-bold font-mono">➔</span>
-            <div className="px-2.5 py-1 bg-emerald-950 border border-emerald-500/30 text-emerald-300 rounded-md text-[9px] font-mono shadow-sm">
-              Process (คำนวณ)
-            </div>
-            <span className="text-slate-600 font-bold font-mono">➔</span>
-            <div className="px-2.5 py-1 bg-amber-950 border border-amber-500/30 text-amber-300 rounded-lg text-[9px] font-mono shadow-sm">
-              Decision (เงื่อนไข)
-            </div>
-          </div>
-          <span className="text-[10px] text-slate-400 font-medium">สัญญลักษณ์เรขาคณิตสากลที่ใช้ในการวาดผังขั้นตอนการไหลงาน</span>
-        </div>
-      )}
-
-      {/* 13. BINARY (รหัสสองสถานะ) */}
-      {visualType === 'binary' && (
-        <div className="flex flex-col items-center gap-2.5 z-10">
-          <div className="flex items-center gap-5">
-            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl font-mono text-base font-bold text-slate-500 shadow-sm">
-              0 (OFF)
-            </div>
-            <span className="text-slate-500 font-bold font-mono text-xs">VS</span>
-            <motion.div 
-              animate={{ opacity: [0.8, 1, 0.8] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-              className="p-3 bg-emerald-950/60 border border-emerald-500/30 rounded-xl font-mono text-base font-bold text-emerald-400 shadow-md"
-            >
-              1 (ON)
-            </motion.div>
-          </div>
-          <span className="text-[10px] font-mono text-slate-400 font-medium">สัญญลักษณ์สถานะสวิตช์ปิด/เปิดสำหรับคอมพิวเตอร์</span>
-        </div>
-      )}
-
-      {/* SPORTS-DECOM (บอส 1: ประธานกีฬาสี แยกปัญหาย่อย) */}
       {visualType === 'sports-decom' && (
         <div className="flex flex-col items-center gap-2 w-full px-6 z-10">
           <div className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-950/60 border border-cyan-500/20 px-3 py-0.5 rounded-full mb-1">
-            Boss Challenge #1 : Decomposition (กีฬาสีโครงการใหญ่)
+            Boss Challenge #1 : Decomposition (ระบบสหกรณ์อัจฉริยะ)
           </div>
           <div className="flex items-center gap-2.5 bg-slate-950 p-3 rounded-2xl border border-slate-800 shadow-md w-full max-w-sm justify-center">
-            <div className="p-2 bg-rose-950 text-rose-400 rounded-xl border border-rose-500/15 flex items-center justify-center">
-              <Trophy size={20} />
+            <div className="p-2 bg-cyan-950 text-cyan-400 rounded-xl border border-cyan-500/15 flex items-center justify-center">
+              <Store size={20} />
             </div>
             <ChevronRight size={14} className="text-slate-600" />
-            <div className="grid grid-cols-3 gap-1.5 text-[9px] font-bold text-slate-300 font-mono text-center">
-              <span className="px-1.5 py-1 bg-slate-900 border border-slate-800 rounded">🎭 เตรียมเวที</span>
-              <span className="px-1.5 py-1 bg-slate-900 border border-slate-800 rounded">🍹 จัดอาหาร</span>
-              <span className="px-1.5 py-1 bg-slate-900 border border-slate-800 rounded">📝 ลงทะเบียน</span>
+            <div className="grid grid-cols-4 gap-1 text-[8px] sm:text-[9px] font-bold text-slate-300 font-mono text-center">
+              <span className="px-1 py-1 bg-slate-900 border border-slate-800 rounded">👤 สมาชิก/โปรไฟล์</span>
+              <span className="px-1 py-1 bg-slate-900 border border-slate-800 rounded">📦 สต็อกคลังสินค้า</span>
+              <span className="px-1 py-1 bg-slate-900 border border-slate-800 rounded">🛒 ตะกร้า/ชำระเงิน</span>
+              <span className="px-1 py-1 bg-slate-900 border border-slate-800 rounded">🎫 ระบบคิวรับของ</span>
             </div>
           </div>
         </div>
@@ -519,25 +478,23 @@ export default function LevelVisuals({ visualType, activeStep = 0 }: LevelVisual
       {visualType === 'heart-filter' && (
         <div className="flex flex-col items-center gap-2 w-full px-6 z-10">
           <div className="text-[10px] font-mono font-bold text-pink-400 bg-pink-950/60 border border-pink-500/20 px-3 py-0.5 rounded-full mb-1">
-            Boss Challenge #2 : Pattern Recognition (สูบฉีด vs กรองน้ำ)
+            Boss Challenge #2 : Pattern Recognition (พฤติกรรมซื้อสินค้า)
           </div>
           <div className="grid grid-cols-2 gap-4 w-full max-w-sm bg-slate-950 p-2.5 rounded-2xl border border-slate-800 shadow-md text-center">
             <div className="border-r border-slate-900 pr-2">
               <div className="flex justify-center items-center gap-1 text-rose-400 text-xs font-bold mb-1">
-                <Heart size={14} className="animate-pulse" />
-                <span>หัวใจปั๊มเลือด</span>
+                <span>👤 นักเรียน</span>
               </div>
-              <span className="text-[9px] text-slate-400 font-mono leading-normal block">หล่อเลี้ยงระบบเซลล์และอวัยวะ</span>
+              <span className="text-[9px] text-slate-400 font-mono leading-normal block">เลือกสินค้า ➔ จ่ายเงิน ➔ รอรับของ</span>
             </div>
             <div className="pl-2">
               <div className="flex justify-center items-center gap-1 text-sky-400 text-xs font-bold mb-1">
-                <Filter size={14} />
-                <span>กรองน้ำตู้ปลา</span>
+                <span>👩‍🏫 คุณครู</span>
               </div>
-              <span className="text-[9px] text-slate-400 font-mono leading-normal block">หมุนเวียนล้างน้ำตู้ปลาสะอาด</span>
+              <span className="text-[9px] text-slate-400 font-mono leading-normal block">เลือกสินค้า ➔ จ่ายเงิน ➔ รอรับของ</span>
             </div>
           </div>
-          <span className="text-[9px] text-emerald-400 font-mono font-bold">ร่วมกลไก : "การปั๊มหมุนเวียนไหลผ่านตัวกลางเพื่อประโยชน์ระบบหลัก"</span>
+          <span className="text-[9px] text-emerald-400 font-mono font-bold">ร่วมกลไก : "รูปแบบการสั่งซื้อและชำระเงินชุดเดียวกัน"</span>
         </div>
       )}
 
@@ -545,21 +502,18 @@ export default function LevelVisuals({ visualType, activeStep = 0 }: LevelVisual
       {visualType === 'fire-exit' && (
         <div className="flex flex-col items-center gap-3 w-full px-6 z-10">
           <div className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-3 py-0.5 rounded-full">
-            Boss Challenge #3 : Abstraction (ป้ายทางหนีไฟ)
+            Boss Challenge #3 : Abstraction (คัดแก่นข้อมูลสินค้า)
           </div>
           
-          <div className="flex items-center gap-4 bg-slate-950 p-3 rounded-2xl border border-slate-800 shadow-md">
-            {/* Real green exit sign look */}
-            <div className="bg-emerald-600 text-slate-950 px-4 py-2 rounded-lg border-2 border-emerald-400 flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.4)] animate-pulse">
-              <span className="text-2xl font-extrabold text-white">🏃‍♂️</span>
-              <div className="h-6 w-1.5 bg-white rounded-full" />
-              <LogOut size={24} className="text-white" />
+          <div className="flex items-center gap-4 bg-slate-950 p-3 rounded-2xl border border-slate-800 shadow-md w-full max-w-sm justify-center">
+            <div className="bg-emerald-600 text-slate-950 p-2 rounded-lg border-2 border-emerald-400 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+              <ShoppingBag size={24} className="text-white animate-pulse" />
             </div>
             
             <div className="text-left font-mono text-[9px] text-slate-400">
-              <span className="text-emerald-400 font-bold block mb-0.5">&lt; สกัดละทิ้งรายละเอียด &gt;</span>
-              <div>❌ ทรงผม / สีผิว / ลวดลายเสื้อผ้า</div>
-              <div className="text-emerald-300 font-bold">✔️ คัดเหลือแค่ : ท่าทางวิ่ง + ประตูหนีไฟ</div>
+              <span className="text-emerald-400 font-bold block mb-0.5">&lt; สกัดละทิ้งรายละเอียดปลีกย่อย &gt;</span>
+              <div>❌ ประวัติผู้ผลิต / ชนิดเครื่องจักร / ลังขนส่ง</div>
+              <div className="text-emerald-300 font-bold">✔️ คัดแก่นหลัก: รูปสินค้า + ชื่อ + ราคา + สต็อก</div>
             </div>
           </div>
         </div>
@@ -568,23 +522,23 @@ export default function LevelVisuals({ visualType, activeStep = 0 }: LevelVisual
       {/* WIFI-LOGIN (บอส 4: ลำดับขั้นตอนวิธี Wi-Fi ล็อกอิน) */}
       {visualType === 'wifi-login' && (
         <div className="flex flex-col items-center gap-2 w-full px-6 z-10">
-          <div className="text-[10px] font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-500/20 px-3 py-0.5 rounded-full mb-1">
-            Boss Challenge #4 : Algorithm Design (ลำดับลงทะเบียนดิจิทัล)
+          <div className="text-[10px] font-mono font-bold text-amber-400 bg-amber-950/60 border-amber-500/20 px-3 py-0.5 rounded-full mb-1">
+            Boss Challenge #4 : Algorithm Design (ลำดับจุดรับของอัจฉริยะ)
           </div>
           <div className="flex items-center gap-2 bg-slate-950 p-3 rounded-2xl border border-slate-800 shadow-md w-full max-w-sm justify-center text-[9px] font-mono text-slate-300">
-            <div className="px-2 py-1 bg-slate-900 border border-slate-800 rounded flex flex-col items-center">
-              <Wifi size={14} className="text-sky-400" />
-              <span>1. เชื่อมต่อ</span>
+            <div className="px-2 py-1 bg-slate-900 border border-slate-800 rounded flex flex-col items-center font-bold">
+              <ShoppingBag size={14} className="text-sky-400" />
+              <span>1. สั่งและจ่ายแอป</span>
             </div>
             <ChevronRight size={12} className="text-slate-600" />
-            <div className="px-2 py-1 bg-slate-900 border border-slate-800 rounded flex flex-col items-center">
+            <div className="px-2 py-1 bg-slate-900 border border-slate-800 rounded flex flex-col items-center font-bold">
               <Repeat size={14} className="text-amber-400 animate-spin" />
-              <span>2. กรอกรหัส</span>
+              <span>2. รับคิว QR</span>
             </div>
             <ChevronRight size={12} className="text-slate-600" />
-            <div className="px-2 py-1 bg-emerald-950 border border-emerald-900 rounded flex flex-col items-center text-emerald-300">
+            <div className="px-2 py-1 bg-emerald-950 border border-emerald-900 rounded flex flex-col items-center text-emerald-300 font-bold">
               <CheckCircle2 size={14} className="text-emerald-400" />
-              <span>3. ดำเนินงาน</span>
+              <span>3. สแกนรับของ</span>
             </div>
           </div>
         </div>
@@ -605,11 +559,15 @@ export default function LevelVisuals({ visualType, activeStep = 0 }: LevelVisual
               <Sparkles size={14} /> Ultimate Wisdom Core
             </h4>
             <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
-              ประสานพลังของ Decomposition, Pattern, Abstraction และ Algorithm ครบทั้ง 4 มิติเพื่อคลี่คลายปัญหาอย่างโปรแกรมเมอร์ผู้เชี่ยวชาญ!
+              ประสานพลังของ Decomposition, Pattern, Abstraction และ Algorithm ครบทั้ง 4 มิติเพื่อยกระดับสหกรณ์โรงเรียนสู่ระบบดิจิทัลอัจฉริยะ!
             </p>
           </div>
         </div>
       )}
+
+
+
+
 
     </div>
   );

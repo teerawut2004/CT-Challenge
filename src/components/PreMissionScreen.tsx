@@ -9,9 +9,10 @@ import { questionsData } from '../data/questions';
 interface CoinJumperProps {
   character: 'kawin' | 'porjai';
   onWin: () => void;
+  levelId: number;
 }
 
-function CoinJumper({ character, onWin }: CoinJumperProps) {
+function CoinJumper({ character, onWin, levelId }: CoinJumperProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [score, setScore] = useState(0);
   const [gameWon, setGameWon] = useState(false);
@@ -109,7 +110,8 @@ function CoinJumper({ character, onWin }: CoinJumperProps) {
 
       // Spawn Coins
       const now = Date.now();
-      if (!state.gameWon && now - state.lastSpawnTime > 1200 && state.coins.filter(c => !c.collected).length < 4) {
+      const spawnInterval = Math.max(600, 1500 - (levelId * 150));
+      if (!state.gameWon && now - state.lastSpawnTime > spawnInterval && state.coins.filter(c => !c.collected).length < 4) {
         state.coins.push({
           x: canvas.width + 20,
           y: 60 + Math.random() * 80, // mid to high coins
@@ -134,7 +136,9 @@ function CoinJumper({ character, onWin }: CoinJumperProps) {
       ctx.strokeStyle = character === 'kawin' ? 'rgba(6,182,212,0.15)' : 'rgba(244,63,148,0.15)';
       ctx.lineWidth = 1;
       const gridSpacing = 40;
-      const offset = !state.gameWon ? (state.frameCount * 3.5) % gridSpacing : 0;
+      const coinSpeed = 3.0 + (levelId * 0.9);
+      const floorSpeed = coinSpeed * 0.875;
+      const offset = !state.gameWon ? (state.frameCount * floorSpeed) % gridSpacing : 0;
       for (let x = -offset; x < canvas.width; x += gridSpacing) {
         ctx.beginPath();
         ctx.moveTo(x, groundY);
@@ -171,7 +175,7 @@ function CoinJumper({ character, onWin }: CoinJumperProps) {
         if (coin.collected) return;
 
         if (!state.gameWon) {
-          coin.x -= 4.0; // coin movement speed
+          coin.x -= coinSpeed; // coin movement speed
         }
 
         coin.pulse += 0.1;
@@ -259,14 +263,39 @@ function CoinJumper({ character, onWin }: CoinJumperProps) {
     };
   }, [character]);
 
+  // Get difficulty level text
+  const getDifficultyLabel = () => {
+    switch (levelId) {
+      case 1:
+        return { text: "ระดับพื้นฐาน (Basic) 🟢 Speed: 1x", color: "text-emerald-400 bg-emerald-950/40 border-emerald-500/20" };
+      case 2:
+        return { text: "ระดับปานกลาง (Normal) 🟡 Speed: 1.25x", color: "text-yellow-400 bg-yellow-950/40 border-yellow-500/20" };
+      case 3:
+        return { text: "ระดับท้าทาย (Challenging) 🟠 Speed: 1.5x", color: "text-orange-400 bg-orange-950/40 border-orange-500/20" };
+      case 4:
+        return { text: "ระดับก้าวหน้า (Advanced) 🔴 Speed: 1.75x", color: "text-rose-400 bg-rose-950/40 border-rose-500/20" };
+      case 5:
+        return { text: "ระดับปรมาจารย์ (Master) 🔥 Speed: 2x", color: "text-pink-400 bg-pink-950/40 border-pink-500/20 animate-pulse" };
+      default:
+        return { text: `ระดับทั่วไป (Level ${levelId})`, color: "text-slate-400 bg-slate-950/40 border-slate-500/20" };
+    }
+  };
+  const diff = getDifficultyLabel();
+
   return (
     <div className="w-full flex flex-col items-center gap-4">
-      <div className="flex items-center justify-between w-full max-w-lg bg-slate-900/60 border border-slate-800 rounded-2xl px-4 py-2.5">
-        <span className="text-xs text-slate-400 font-mono">
-          เป้าหมาย : เก็บเหรียญทองให้ครบ 10 เหรียญ
-        </span>
-        <div className="flex items-center gap-1.5 bg-amber-950/40 border border-amber-500/30 px-3 py-1 rounded-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full max-w-lg bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 gap-2.5">
+        <div className="flex flex-col gap-1 text-left">
+          <span className="text-[11px] text-slate-400 font-medium">
+            🎯 เป้าหมาย : เก็บเหรียญทองให้ครบ 10 เหรียญ
+          </span>
+          <div className={`text-[10px] font-bold font-sans px-2.5 py-0.5 rounded-lg border w-fit ${diff.color}`}>
+            {diff.text}
+          </div>
+        </div>
+        <div className="flex items-center justify-between sm:justify-end gap-1.5 bg-amber-950/40 border border-amber-500/30 px-3 py-2 rounded-xl shrink-0">
           <Coins size={14} className="text-amber-400 animate-pulse" />
+          <span className="text-xs font-mono text-slate-400 mr-1">เหรียญสะสม:</span>
           <span className="text-sm font-bold text-amber-300 font-mono">
             {score} / 10
           </span>
@@ -620,7 +649,7 @@ export default function PreMissionScreen({
                 </p>
               </div>
 
-              <CoinJumper character="kawin" onWin={onMissionSuccess} />
+              <CoinJumper character={selectedChar || 'kawin'} onWin={onMissionSuccess} levelId={levelId} />
             </motion.div>
           )}
         </AnimatePresence>

@@ -84,6 +84,10 @@ export default function GameplayScreen({
   const [selectedItemIdx, setSelectedItemIdx] = useState<number | null>(null);
   const [draggedOverBoxIdx, setDraggedOverBoxIdx] = useState<number | null>(null);
 
+  // Sequence Drag & Drop and Touch-Swap States
+  const [draggedSeqIdx, setDraggedSeqIdx] = useState<number | null>(null);
+  const [selectedSeqIdx, setSelectedSeqIdx] = useState<number | null>(null);
+
   // Reset states when question changes
   useEffect(() => {
     setSelectedOption(null);
@@ -92,14 +96,21 @@ export default function GameplayScreen({
     setCategoryAssignments({});
     setSelectedItemIdx(null);
     setDraggedOverBoxIdx(null);
+    setSelectedSeqIdx(null);
+    setDraggedSeqIdx(null);
 
     if (!currentQuestion) return;
 
     if (currentQuestion.type === 'multiple-choice') {
       if (currentQuestion.options) {
         const optionsWithIdx = currentQuestion.options.map((opt, idx) => ({ text: opt, originalIdx: idx }));
-        // Do not shuffle - keep original ordering as requested
-        setShuffledOptions(optionsWithIdx);
+        // Shuffle the options to distribute correct choices across all positions (scattered)
+        const shuffled = [...optionsWithIdx];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        setShuffledOptions(shuffled);
       }
     } 
     else if (currentQuestion.type === 'sequence') {
@@ -185,20 +196,52 @@ export default function GameplayScreen({
     setMatchedPairs([...filtered, { leftIdx: lIdx, rightIdx: rIdx }]);
   };
 
-  // Reorder sequence helper (move item up or down)
-  const moveSequenceItem = (index: number, direction: 'up' | 'down') => {
-    audioSynth.playSfx('click');
+  // Drag and drop / Touch-swap handlers for Sequence Questions
+  const handleSeqDragStart = (e: React.DragEvent, idx: number) => {
+    setDraggedSeqIdx(idx);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleSeqDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (draggedSeqIdx === null || draggedSeqIdx === idx) return;
+
     const newOrder = [...sequenceOrder];
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    const draggedItem = newOrder[draggedSeqIdx];
+    newOrder.splice(draggedSeqIdx, 1);
+    newOrder.splice(idx, 0, draggedItem);
 
-    if (targetIdx < 0 || targetIdx >= newOrder.length) return;
-
-    // Swap
-    const temp = newOrder[index];
-    newOrder[index] = newOrder[targetIdx];
-    newOrder[targetIdx] = temp;
-
+    setDraggedSeqIdx(idx);
     setSequenceOrder(newOrder);
+  };
+
+  const handleSeqDragEnd = () => {
+    setDraggedSeqIdx(null);
+  };
+
+  const handleSeqDrop = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setDraggedSeqIdx(null);
+    audioSynth.playSfx('click');
+  };
+
+  const handleSeqClickSelect = (idx: number) => {
+    audioSynth.playSfx('click');
+    if (selectedSeqIdx === null) {
+      setSelectedSeqIdx(idx);
+    } else {
+      if (selectedSeqIdx === idx) {
+        setSelectedSeqIdx(null);
+      } else {
+        // Swap positions
+        const newOrder = [...sequenceOrder];
+        const temp = newOrder[selectedSeqIdx];
+        newOrder[selectedSeqIdx] = newOrder[idx];
+        newOrder[idx] = temp;
+        setSequenceOrder(newOrder);
+        setSelectedSeqIdx(null);
+      }
+    }
   };
 
   const handleSubmit = () => {
@@ -375,55 +418,63 @@ export default function GameplayScreen({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="flex flex-col gap-3"
+                className="flex flex-col gap-3.5"
               >
-                <div className="text-xs text-amber-400/80 font-mono mb-1 uppercase tracking-wide flex items-center gap-1.5">
-                  <Sparkles size={14} className="animate-spin" />
-                  วิธีตอบ : ใช้ปุ่มลูกศรเลื่อนปรับตำแหน่งเพื่อจัดเรียงคำตอบจากบนลงล่างให้ถูกต้อง
+                <div className="text-xs text-amber-400 font-mono mb-1.5 uppercase tracking-wide flex flex-col sm:flex-row sm:items-center gap-1.5 bg-amber-950/40 p-2.5 rounded-xl border border-amber-900/30">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Sparkles size={14} className="text-amber-400 animate-pulse" />
+                    <span className="font-bold">วิธีตอบ :</span>
+                  </div>
+                  <span>ลากสลับตำแหน่งเพื่อจัดเรียงลำดับจากบนลงล่าง หรือ แตะเพื่อเลือกแล้วแตะอีกกล่องเพื่อสลับตำแหน่งกัน</span>
                 </div>
 
                 <div className="space-y-2.5">
                   {sequenceOrder.map((itemIdx, seqIdx) => {
                     const itemText = currentQuestion.items ? currentQuestion.items[itemIdx] : '';
+                    const isDragged = draggedSeqIdx === seqIdx;
+                    const isSelected = selectedSeqIdx === seqIdx;
                     return (
                       <div
                         key={itemIdx}
-                        className="bg-white border border-slate-200 p-3 md:p-4 rounded-xl flex items-center justify-between gap-4 transition-all duration-200 hover:border-amber-500/50 shadow-md"
+                        draggable
+                        onDragStart={(e) => handleSeqDragStart(e, seqIdx)}
+                        onDragOver={(e) => handleSeqDragOver(e, seqIdx)}
+                        onDragEnd={handleSeqDragEnd}
+                        onDrop={(e) => handleSeqDrop(e, seqIdx)}
+                        onClick={() => handleSeqClickSelect(seqIdx)}
+                        className={`bg-white border p-3.5 md:p-4 rounded-xl flex items-center justify-between gap-4 transition-all duration-200 cursor-grab active:cursor-grabbing select-none relative group ${
+                          isDragged
+                            ? "opacity-30 scale-[0.98] border-amber-400"
+                            : isSelected
+                            ? "border-amber-500 ring-2 ring-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.25)] bg-amber-50/20"
+                            : "border-slate-200 hover:border-amber-400/60 hover:bg-slate-50/30 shadow-md"
+                        }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          {/* Grip Handle */}
+                          <div className={`text-slate-400 group-hover:text-amber-500 transition-colors shrink-0 ${isSelected ? "text-amber-500 animate-pulse" : ""}`}>
+                            <GripVertical size={18} />
+                          </div>
+                          
                           {/* Rank indicator badge */}
-                          <span className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-300 text-amber-800 font-mono text-sm font-bold flex items-center justify-center shrink-0 shadow-sm">
+                          <span className={`w-8 h-8 rounded-lg font-mono text-xs md:text-sm font-bold flex items-center justify-center shrink-0 shadow-sm transition-colors ${
+                            isSelected
+                              ? "bg-amber-500 border border-amber-600 text-white"
+                              : "bg-amber-100 border border-amber-300 text-amber-800"
+                          }`}>
                             0{seqIdx + 1}
                           </span>
-                          <p className="text-xs md:text-sm text-slate-950 font-semibold leading-normal">{itemText}</p>
+                          
+                          <p className="text-xs md:text-sm text-slate-950 font-semibold leading-normal flex-1">{itemText}</p>
                         </div>
 
-                        {/* Move Up/Down button controllers */}
-                        <div className="flex flex-col gap-1 shrink-0">
-                          <button
-                            onClick={() => moveSequenceItem(seqIdx, 'up')}
-                            disabled={seqIdx === 0}
-                            className={`p-1 rounded-md border transition-colors ${
-                              seqIdx === 0
-                                ? "border-transparent text-slate-200 cursor-not-allowed"
-                                : "border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-500 hover:text-amber-600 cursor-pointer"
-                            }`}
-                            title="เลื่อนขึ้น"
-                          >
-                            <ChevronUp size={16} />
-                          </button>
-                          <button
-                            onClick={() => moveSequenceItem(seqIdx, 'down')}
-                            disabled={seqIdx === sequenceOrder.length - 1}
-                            className={`p-1 rounded-md border transition-colors ${
-                              seqIdx === sequenceOrder.length - 1
-                                ? "border-transparent text-slate-200 cursor-not-allowed"
-                                : "border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-500 hover:text-amber-600 cursor-pointer"
-                            }`}
-                            title="เลื่อนลง"
-                          >
-                            <ChevronDown size={16} />
-                          </button>
+                        {/* Interactive status / help tip */}
+                        <div className="hidden sm:flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                          {isSelected ? (
+                            <span className="text-amber-600 animate-pulse font-bold">กำลังเลือก... แตะอีกช่องเพื่อสลับ</span>
+                          ) : (
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity">ลากหรือแตะสลับ</span>
+                          )}
                         </div>
                       </div>
                     );

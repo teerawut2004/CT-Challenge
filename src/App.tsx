@@ -9,7 +9,6 @@ import RegistrationScreen from './components/RegistrationScreen';
 import FeedbackOverlay from './components/FeedbackOverlay';
 import { questionsData } from './data/questions';
 import { audioSynth } from './utils/audio';
-import { isSupabaseConfigured, syncStudentProgress, fetchStudentProgress } from './utils/supabase';
 
 type ScreenType = 'home' | 'map' | 'gameplay' | 'boss' | 'premission' | 'registration';
 type FeedbackType = 'correct' | 'incorrect' | 'gameover' | 'level-completed' | null;
@@ -123,7 +122,7 @@ export default function App() {
     }
   };
 
-  const handleRegisterStudent = async (name: string, klass: string, num: string) => {
+  const handleRegisterStudent = (name: string, klass: string, num: string) => {
     setStudentName(name);
     setStudentClass(klass);
     setStudentNumber(num);
@@ -135,29 +134,6 @@ export default function App() {
       sessionStorage.setItem('ct_character_name', name);
     } catch (e) {
       console.error("Failed to save student profile", e);
-    }
-
-    if (isSupabaseConfigured) {
-      try {
-        const existing = await fetchStudentProgress(name, klass, num);
-        if (existing) {
-          // Restore progress from Supabase
-          setUnlockedLevels(existing.unlocked_levels || [1]);
-          setCompletedLevels(existing.completed_levels || []);
-          saveProgress(existing.unlocked_levels || [1], existing.completed_levels || []);
-        } else {
-          // Initialize fresh progress in Supabase
-          await syncStudentProgress({
-            student_name: name,
-            student_class: klass,
-            student_number: num,
-            unlocked_levels: [1],
-            completed_levels: []
-          });
-        }
-      } catch (err) {
-        console.error("Failed to fetch or create student progress on Supabase", err);
-      }
     }
 
     setCurrentScreen('map');
@@ -177,7 +153,11 @@ export default function App() {
     setHearts(3);
     setCorrectStreak(0);
     setShowFeedback(null);
-    setCurrentScreen('premission');
+    if (levelId === 5) {
+      setCurrentScreen('boss');
+    } else {
+      setCurrentScreen('premission');
+    }
   };
 
   // --- Answer evaluation ---
@@ -269,17 +249,6 @@ export default function App() {
       setCompletedLevels(newCompleted);
       setUnlockedLevels(newUnlocked);
       saveProgress(newUnlocked, newCompleted);
-
-      // Async sync progress to Supabase
-      if (isSupabaseConfigured && studentName) {
-        syncStudentProgress({
-          student_name: studentName,
-          student_class: studentClass,
-          student_number: studentNumber,
-          unlocked_levels: newUnlocked,
-          completed_levels: newCompleted
-        }).catch(err => console.error("Failed to sync progress to Supabase:", err));
-      }
 
       // Return to galaxy map
       setCurrentScreen('map');
