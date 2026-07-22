@@ -39,6 +39,7 @@ export default function App() {
   const [showFeedback, setShowFeedback] = useState<FeedbackType>(null);
   const [activeHintText, setActiveHintText] = useState<string>('');
   const [justUnlockedLevelId, setJustUnlockedLevelId] = useState<number | null>(null);
+  const [levelScores, setLevelScores] = useState<Record<number, number>>({ 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 });
 
   // --- Load progress from Session Storage on mount ---
   useEffect(() => {
@@ -51,8 +52,10 @@ export default function App() {
       const savedStudentName = sessionStorage.getItem('ct_student_name');
       const savedStudentClass = sessionStorage.getItem('ct_student_class');
       const savedStudentNumber = sessionStorage.getItem('ct_student_number');
+      const savedScores = sessionStorage.getItem('ct_level_scores');
 
       if (savedUnlocked) setUnlockedLevels(JSON.parse(savedUnlocked));
+      if (savedScores) setLevelScores(JSON.parse(savedScores));
       if (savedCompleted) setCompletedLevels(JSON.parse(savedCompleted));
       if (savedSound) {
         const soundVal = JSON.parse(savedSound);
@@ -218,17 +221,16 @@ export default function App() {
       setShowFeedback(null);
     } 
     else if (showFeedback === 'gameover') {
-      // Reset all progress completely back to Level 1
-      setUnlockedLevels([1]);
-      setCompletedLevels([]);
-      saveProgress([1], []);
-      setJustUnlockedLevelId(null);
-      setCurrentLevelId(1);
+      // Restart current level instead of resetting back to Level 1
       setCurrentQuestionIdx(0);
       setHearts(3);
       setCorrectStreak(0);
-      setCurrentScreen('map');
       setShowFeedback(null);
+      if (currentLevelId === 5) {
+        setCurrentScreen('boss');
+      } else {
+        setCurrentScreen('gameplay');
+      }
     } 
     else if (showFeedback === 'level-completed') {
       // Save Level completion and unlock the next level
@@ -250,6 +252,17 @@ export default function App() {
       setUnlockedLevels(newUnlocked);
       saveProgress(newUnlocked, newCompleted);
 
+      // Save the hearts remaining as the score for this level (levels 1 to 5)
+      if (currentLevelId >= 1 && currentLevelId <= 5) {
+        const nextScores = { ...levelScores, [currentLevelId]: hearts };
+        setLevelScores(nextScores);
+        try {
+          sessionStorage.setItem('ct_level_scores', JSON.stringify(nextScores));
+        } catch (e) {
+          console.error("Failed to save level scores", e);
+        }
+      }
+
       // Return to galaxy map
       setCurrentScreen('map');
       setShowFeedback(null);
@@ -269,6 +282,7 @@ export default function App() {
     setStudentName('');
     setStudentClass('');
     setStudentNumber('');
+    setLevelScores({ 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 });
     saveProgress([1], []);
     try {
       sessionStorage.removeItem('ct_unlocked_levels');
@@ -278,6 +292,7 @@ export default function App() {
       sessionStorage.removeItem('ct_student_name');
       sessionStorage.removeItem('ct_student_class');
       sessionStorage.removeItem('ct_student_number');
+      sessionStorage.removeItem('ct_level_scores');
     } catch (e) {}
     setJustUnlockedLevelId(null);
   };
@@ -397,6 +412,7 @@ export default function App() {
             studentName={studentName}
             studentClass={studentClass}
             studentNumber={studentNumber}
+            levelScores={levelScores}
             onClearAndExit={() => {
               handleResetProgress();
               setCurrentScreen('home');

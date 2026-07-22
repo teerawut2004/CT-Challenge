@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, ArrowLeft, CheckCircle2, Heart, Pickaxe, Radar, Cpu, FileCode } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Volume2, VolumeX, ArrowLeft, CheckCircle2, Heart, Sparkles, Terminal, ShieldAlert, Layers, Grid, EyeOff, Cpu } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { audioSynth } from '../utils/audio';
-import { Question } from '../data/questions';
+import { Question, BOSS_SCENARIO } from '../data/questions';
 import { localizeQuestion } from '../utils/localization';
 
 interface BossChallengeScreenProps {
@@ -10,7 +10,7 @@ interface BossChallengeScreenProps {
   currentQuestionIdx: number;
   hearts: number;
   characterName: string;
-  onAnswerSubmit: (isCorrect: boolean, selectedAnswer: string) => void;
+  onAnswerSubmit: (isCorrect: boolean, selectedAnswer: any) => void;
   onExit: () => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
@@ -29,73 +29,39 @@ export default function BossChallengeScreen({
   const rawQuestion = questions[currentQuestionIdx];
   const currentQuestion = localizeQuestion(rawQuestion, characterName);
 
-  const renderHighlightedText = (text: string) => {
-    if (!text) return null;
-    const parts = text.split("'");
-    if (parts.length === 1) {
-      return <span>{text}</span>;
-    }
-    const highlightClass = "text-rose-300 bg-rose-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-rose-500/30 inline-block shadow-[0_0_8px_rgba(244,63,94,0.2)]";
-    return (
-      <span>
-        {parts.map((part, index) => {
-          if (index % 2 !== 0) {
-            return (
-              <span key={index} className={highlightClass}>
-                {part}
-              </span>
-            );
-          }
-          return <span key={index}>{part}</span>;
-        })}
-      </span>
-    );
-  };
-
-  const [selectedTool, setSelectedTool] = useState<string | null>(null);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [shuffledOptions, setShuffledOptions] = useState<{ text: string; originalIdx: number }[]>([]);
 
   useEffect(() => {
-    setSelectedTool(null);
-  }, [currentQuestionIdx]);
+    setSelectedOption(null);
+    if (!currentQuestion) return;
+    if (currentQuestion.options) {
+      const optionsWithIdx = currentQuestion.options.map((opt, idx) => ({ text: opt, originalIdx: idx }));
+      const shuffled = [...optionsWithIdx];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      setShuffledOptions(shuffled);
+    }
+  }, [currentQuestionIdx, rawQuestion?.id]);
 
   const handleToggleAudio = () => {
     onToggleSound();
     audioSynth.playSfx('click');
   };
 
-  const handleToolSelect = (toolName: string) => {
+  const handleOptionSelect = (idx: number) => {
     audioSynth.playSfx('click');
-    setSelectedTool(toolName);
+    setSelectedOption(idx);
   };
 
   const handleSubmit = () => {
-    if (selectedTool === null) return;
-    
-    // Map of question ID to the correct computational thinking pillar name(s)
-    const idToCorrectTool: Record<string, string | string[]> = {
-      'b1': 'Decomposition',
-      'b2': 'Pattern Recognition',
-      'b3': 'Abstraction',
-      'b4': 'Algorithm',
-      'b5': ['Decomposition', 'Pattern Recognition', 'Abstraction', 'Algorithm'] // b5 integrates all 4 pillars
-    };
-
-    const correct = idToCorrectTool[currentQuestion.id];
-    let isCorrect = false;
-
-    if (correct !== undefined) {
-      if (Array.isArray(correct)) {
-        isCorrect = correct.includes(selectedTool);
-      } else {
-        isCorrect = correct === selectedTool;
-      }
-    } else {
-      // Graceful fallback for any other custom questions
-      const correctStr = String(currentQuestion.correctAnswer || "");
-      isCorrect = correctStr.includes(selectedTool);
-    }
-
-    onAnswerSubmit(isCorrect, selectedTool);
+    if (selectedOption === null) return;
+    const selectedOptionObj = shuffledOptions[selectedOption];
+    if (!selectedOptionObj) return;
+    const isCorrect = selectedOptionObj.originalIdx === currentQuestion.correctAnswer;
+    onAnswerSubmit(isCorrect, selectedOptionObj.originalIdx);
   };
 
   const handleExitClick = () => {
@@ -103,55 +69,40 @@ export default function BossChallengeScreen({
     onExit();
   };
 
-  // Define the 4 pillars toolbox config
-  const toolboxItems = [
-    {
-      id: 'Decomposition',
-      name: 'Decomposition',
-      thaiName: 'การแบ่งปัญหาใหญ่เป็นปัญหาย่อย',
-      icon: Pickaxe,
-      color: 'bg-white border-slate-200 text-slate-700 hover:border-slate-350 hover:bg-slate-50',
-      activeColor: 'bg-white border-cyan-500 text-cyan-950 ring-2 ring-cyan-500/45 shadow-[0_0_15px_rgba(6,182,212,0.25)]'
-    },
-    {
-      id: 'Pattern Recognition',
-      name: 'Pattern Recognition',
-      thaiName: 'การพิจารณารูปแบบ',
-      icon: Radar,
-      color: 'bg-white border-slate-200 text-slate-700 hover:border-slate-350 hover:bg-slate-50',
-      activeColor: 'bg-white border-purple-500 text-purple-950 ring-2 ring-purple-500/45 shadow-[0_0_15px_rgba(168,85,247,0.25)]'
-    },
-    {
-      id: 'Abstraction',
-      name: 'Abstraction',
-      thaiName: 'การคิดเชิงนามธรรม',
-      icon: Cpu,
-      color: 'bg-white border-slate-200 text-slate-700 hover:border-slate-350 hover:bg-slate-50',
-      activeColor: 'bg-white border-rose-500 text-rose-950 ring-2 ring-rose-500/45 shadow-[0_0_15px_rgba(244,63,94,0.25)]'
-    },
-    {
-      id: 'Algorithm',
-      name: 'Algorithm',
-      thaiName: 'การออกแบบอัลกอริทึม',
-      icon: FileCode,
-      color: 'bg-white border-slate-200 text-slate-700 hover:border-slate-350 hover:bg-slate-50',
-      activeColor: 'bg-white border-amber-500 text-amber-950 ring-2 ring-amber-500/45 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+  // Get matching icon for current CT pillar question
+  const getPillarIcon = (index: number) => {
+    switch (index) {
+      case 0: return <Layers size={18} className="text-cyan-400" />;
+      case 1: return <Grid size={18} className="text-purple-400" />;
+      case 2: return <EyeOff size={18} className="text-pink-400" />;
+      case 3: return <Cpu size={18} className="text-amber-400" />;
+      default: return <Sparkles size={18} className="text-rose-400" />;
     }
-  ];
+  };
 
-  const progressPercent = ((currentQuestionIdx) / questions.length) * 100;
+  const getPillarColorBadge = (index: number) => {
+    switch (index) {
+      case 0: return "bg-cyan-950/60 text-cyan-400 border-cyan-500/20";
+      case 1: return "bg-purple-950/60 text-purple-400 border-purple-500/20";
+      case 2: return "bg-pink-950/60 text-pink-400 border-pink-500/20";
+      case 3: return "bg-amber-950/60 text-amber-400 border-amber-500/20";
+      default: return "bg-rose-950/60 text-rose-400 border-rose-500/20";
+    }
+  };
+
+  const progressPercent = (currentQuestionIdx / questions.length) * 100;
 
   return (
     <div className="relative min-h-screen flex flex-col bg-[#050811] text-white overflow-hidden font-sans select-none pb-12">
-      {/* Glow alert warning neon lines */}
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-rose-500/20 via-rose-500 to-rose-500/20 shadow-[0_0_10px_#f43f5e]" />
+      {/* Top Warning Neon Bar */}
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-rose-500/20 via-rose-500 to-rose-500/20 shadow-[0_0_12px_#f43f5e] z-30" />
       
-      {/* Background grids */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(244,63,94,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(244,63,94,0.01)_1px,transparent_1px)] bg-[size:50px_50px] pointer-events-none" />
+      {/* Grid Overlay */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(244,63,94,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(244,63,94,0.015)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
 
       {/* Header HUD */}
-      <header className="w-full bg-slate-950/90 border-b border-rose-950/80 backdrop-blur-md p-4 sticky top-0 z-20 shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+      <header className="w-full bg-slate-950/95 border-b border-rose-950/80 backdrop-blur-md p-4 sticky top-0 z-20 shadow-[0_4px_30px_rgba(0,0,0,0.7)]">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
           <button
             onClick={handleExitClick}
@@ -164,7 +115,7 @@ export default function BossChallengeScreen({
 
           <div className="flex-1 flex flex-col items-center max-w-sm md:max-w-md">
             <div className="flex justify-between w-full text-[10px] md:text-xs font-mono text-rose-400 mb-1">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 font-bold">
                 <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
                 ด่านประยุกต์แก้ไขปัญหาสุดท้าทาย (Final Arena)
               </span>
@@ -216,77 +167,132 @@ export default function BossChallengeScreen({
         </div>
       </header>
 
-      {/* Main Layout */}
-      <main className="flex-1 max-w-2xl w-full mx-auto p-4 flex flex-col gap-5 relative z-10 mt-4">
+      {/* Main Layout Grid */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
         
-        {/* Simple elegant inline question description */}
-        <div className="mb-2 px-1">
-          <p className="text-slate-200 text-sm md:text-base font-semibold leading-relaxed whitespace-pre-line">
-            {renderHighlightedText(currentQuestion.question)}
-          </p>
-        </div>
+        {/* Left Side: Persistent Holographic Scenario Briefing */}
+        <section className="lg:col-span-5 flex flex-col gap-4">
+          <div className="bg-slate-950/85 border border-rose-900/40 rounded-2xl p-5 shadow-[0_10px_35px_rgba(0,0,0,0.6)] backdrop-blur-md relative overflow-hidden flex flex-col h-full">
+            {/* Glowing corner highlights */}
+            <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-rose-500/40" />
+            <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-rose-500/40" />
+            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-rose-500/40" />
+            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-rose-500/40" />
 
-        {/* The 4 pillars Toolbox Panel */}
-        <div className="w-full flex flex-col gap-4">
-          <div className="bg-slate-950/70 border border-slate-900 rounded-2xl p-4 flex-1 flex flex-col justify-between shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-            <div>
-              <div className="border-b border-slate-900 pb-3 mb-4 flex items-center justify-between">
-                <h4 className="text-sm font-bold text-slate-300 font-mono tracking-wider uppercase flex items-center gap-2">
-                  <Pickaxe size={16} className="text-amber-500" />
-                  CT TOOLBOX (เลือกทักษะที่นำมาใช้)
-                </h4>
-                <span className="text-[9px] font-mono bg-slate-900 px-2 py-0.5 rounded text-slate-500">CT-TOOLS</span>
+            <div className="border-b border-rose-950/60 pb-3.5 mb-4 flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-rose-950/50 border border-rose-500/30">
+                <Terminal size={18} className="text-rose-400 animate-pulse" />
               </div>
-
-              {/* Toolbox Tray */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-3" id="toolbox-tray">
-                {toolboxItems.map((tool) => {
-                  const isSelected = selectedTool === tool.id;
-                  const IconComp = tool.icon;
-                  return (
-                    <button
-                      key={tool.id}
-                      onClick={() => handleToolSelect(tool.id)}
-                      className={`p-3.5 rounded-xl border text-left transition-all duration-300 transform active:scale-98 cursor-pointer flex items-center gap-3 relative overflow-hidden group ${
-                        isSelected
-                          ? tool.activeColor
-                          : tool.color
-                      }`}
-                    >
-                      <div className={`p-2 rounded-lg border ${
-                        isSelected
-                          ? 'bg-slate-900 border-slate-950 text-white'
-                          : 'bg-slate-50 border-slate-100 text-slate-500'
-                      }`}>
-                        <IconComp size={18} />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className={`text-xs font-bold font-mono tracking-wide uppercase ${
-                          isSelected ? 'text-slate-950' : 'text-slate-800'
-                        }`}>
-                          {tool.name}
-                        </span>
-                        <span className={`text-[10px] mt-0.5 font-medium ${
-                          isSelected ? 'text-slate-700' : 'text-slate-500'
-                        }`}>
-                          {tool.thaiName}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
+              <div>
+                <h3 className="text-sm font-bold text-rose-400 font-mono uppercase tracking-wider">
+                  MISSION SCENARIO
+                </h3>
+                <span className="text-[10px] text-slate-500 font-mono">📡 ข้อมูลสถานการณ์ร่วมด่านที่ 5</span>
               </div>
             </div>
 
-            {/* Submit Action within Toolbox sidebar */}
-            <div className="mt-6 border-t border-slate-900 pt-4">
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              <div className="p-4 rounded-xl bg-slate-900/40 border border-rose-950/40 leading-relaxed text-sm md:text-base text-slate-200">
+                <p className="font-bold text-rose-300 text-base md:text-lg mb-2">
+                  🏫 โครงการ: ศูนย์อาหารอัจฉริยะ (Smart Food Center)
+                </p>
+                <p className="text-sm md:text-base text-slate-200 leading-relaxed">
+                  {BOSS_SCENARIO}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-900/20 border border-slate-900/60 flex items-start gap-2.5">
+                <ShieldAlert size={18} className="text-rose-400 shrink-0 mt-0.5" />
+                <div className="text-xs md:text-sm text-slate-300 space-y-1">
+                  <p className="font-bold text-slate-100">คำชี้แจงสำหรับนักเรียน:</p>
+                  <p>ให้นักเรียนนำความรู้หลัก 4 ด้านของวิทยาการคำนวณมาแก้ปัญหาจากสถานการณ์เดียวกันนี้ เพื่อก้าวสู่ทำเนียบสุดยอดโปรแกรมเมอร์!</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Right Side: Question & Options Display */}
+        <section className="lg:col-span-7 flex flex-col gap-4">
+          <div className="bg-slate-950/70 border border-slate-900 rounded-2xl p-5 md:p-6 flex flex-col justify-between h-full shadow-[0_10px_35px_rgba(0,0,0,0.5)] backdrop-blur-md">
+            
+            <div className="space-y-4">
+              {/* Question Pillar Badge Header */}
+              <div className="flex items-center justify-between border-b border-slate-900 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
+                    {getPillarIcon(currentQuestionIdx)}
+                  </div>
+                  <span className={`text-xs font-bold font-mono uppercase px-2.5 py-1 rounded-lg border tracking-wider ${getPillarColorBadge(currentQuestionIdx)}`}>
+                    {currentQuestionIdx === 0 ? "Decomposition" :
+                     currentQuestionIdx === 1 ? "Pattern Recognition" :
+                     currentQuestionIdx === 2 ? "Abstraction" : "Algorithm Design"}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-slate-400">
+                  QUESTION {currentQuestionIdx + 1} OF 4
+                </span>
+              </div>
+
+              {/* Question Text */}
+              <div className="py-2">
+                <h2 className="text-base md:text-lg lg:text-xl font-bold leading-relaxed text-slate-100 whitespace-pre-line">
+                  {currentQuestion.question}
+                </h2>
+              </div>
+
+              {/* Options Tray */}
+              <div className="space-y-3 pt-2" id="toolbox-tray">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`options-grid-${currentQuestionIdx}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-3.5"
+                  >
+                    {shuffledOptions.map((optionObj, idx) => {
+                      const isSelected = selectedOption === idx;
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => handleOptionSelect(idx)}
+                          className={`w-full p-4 md:p-5 rounded-2xl border text-left transition-all duration-200 transform active:scale-[0.99] cursor-pointer flex items-start gap-4 relative overflow-hidden group ${
+                            isSelected
+                              ? "bg-white border-rose-500 text-slate-950 ring-2 ring-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.25)]"
+                              : "bg-slate-900/40 border-slate-800/80 hover:border-rose-500/40 hover:bg-slate-900/60 text-slate-200"
+                          }`}
+                        >
+                          {/* Option Prefix Circle */}
+                          <span
+                            className={`w-7 h-7 md:w-8 md:h-8 rounded-xl font-mono text-sm md:text-base font-bold flex items-center justify-center shrink-0 border transition-all duration-200 mt-0.5 ${
+                              isSelected
+                                ? "bg-rose-600 border-rose-500 text-white"
+                                : "bg-slate-950 border-slate-800 text-slate-400 group-hover:border-rose-500/30 group-hover:text-rose-400"
+                            }`}
+                          >
+                            {String.fromCharCode(65 + idx)}
+                          </span>
+                          <span className="text-sm md:text-base lg:text-lg font-bold leading-relaxed">
+                            {optionObj.text}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* Check/Submit Action Area */}
+            <div className="mt-8 border-t border-slate-900 pt-4">
               <button
                 onClick={handleSubmit}
-                disabled={selectedTool === null}
+                disabled={selectedOption === null}
                 className={`w-full py-4 rounded-xl font-bold tracking-wider transition-all duration-300 cursor-pointer transform active:scale-95 text-center flex items-center justify-center gap-2 ${
-                  selectedTool === null
-                    ? "bg-slate-900 border border-slate-950 text-slate-500 cursor-not-allowed"
-                    : "bg-rose-500 hover:bg-rose-400 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)] hover:shadow-[0_0_35px_rgba(244,63,94,0.6)] border border-rose-400/20"
+                  selectedOption === null
+                    ? "bg-slate-900 border border-slate-950 text-slate-500 cursor-not-allowed text-xs md:text-sm"
+                    : "bg-rose-500 hover:bg-rose-400 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)] hover:shadow-[0_0_35px_rgba(244,63,94,0.6)] border border-rose-400/20 text-xs md:text-sm"
                 }`}
                 id="boss-submit-btn"
               >
@@ -295,7 +301,7 @@ export default function BossChallengeScreen({
             </div>
 
           </div>
-        </div>
+        </section>
 
       </main>
     </div>

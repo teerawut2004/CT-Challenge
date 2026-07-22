@@ -364,8 +364,8 @@ export default function GameplayScreen({
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col gap-6 relative z-10 mt-2">
         
         {/* Simple elegant inline question description */}
-        <div className="mb-2 px-1">
-          <p className="text-slate-200 text-sm md:text-base font-semibold leading-relaxed">
+        <div className="mb-3 px-1">
+          <p className="text-slate-100 text-base md:text-lg lg:text-xl font-bold leading-relaxed">
             {renderHighlightedText(currentQuestion.question)}
           </p>
         </div>
@@ -380,7 +380,7 @@ export default function GameplayScreen({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="grid grid-cols-1 gap-3"
+                className="grid grid-cols-1 gap-3.5"
               >
                 {shuffledOptions.map((optionObj, idx) => {
                   const isSelected = selectedOption === idx;
@@ -388,7 +388,7 @@ export default function GameplayScreen({
                     <button
                       key={idx}
                       onClick={() => handleOptionSelect(idx)}
-                      className={`w-full p-4 rounded-xl border text-left transition-all duration-200 transform active:scale-[0.99] cursor-pointer flex items-center gap-3 relative overflow-hidden ${
+                      className={`w-full p-4 md:p-5 rounded-2xl border text-left transition-all duration-200 transform active:scale-[0.99] cursor-pointer flex items-center gap-4 relative overflow-hidden ${
                         isSelected
                           ? "bg-white border-cyan-500 text-slate-950 ring-2 ring-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.25)]"
                           : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-800"
@@ -396,15 +396,15 @@ export default function GameplayScreen({
                     >
                       {/* Left Badge number */}
                       <span
-                        className={`w-6 h-6 rounded-lg font-mono text-xs font-bold flex items-center justify-center shrink-0 border ${
+                        className={`w-7 h-7 md:w-8 md:h-8 rounded-xl font-mono text-sm md:text-base font-bold flex items-center justify-center shrink-0 border ${
                           isSelected
                             ? "bg-cyan-600 border-cyan-500 text-white"
-                            : "bg-slate-100 border-slate-200 text-slate-600"
+                            : "bg-slate-100 border-slate-200 text-slate-700"
                         }`}
                       >
                         {idx + 1}
                       </span>
-                      <span className="text-sm md:text-base font-semibold">{optionObj.text}</span>
+                      <span className="text-base md:text-lg lg:text-xl font-bold leading-snug">{optionObj.text}</span>
                     </button>
                   );
                 })}
@@ -420,15 +420,15 @@ export default function GameplayScreen({
                 exit={{ opacity: 0, y: -10 }}
                 className="flex flex-col gap-3.5"
               >
-                <div className="text-xs text-amber-400 font-mono mb-1.5 uppercase tracking-wide flex flex-col sm:flex-row sm:items-center gap-1.5 bg-amber-950/40 p-2.5 rounded-xl border border-amber-900/30">
+                <div className="text-xs md:text-sm text-amber-300 font-sans mb-1.5 uppercase tracking-wide flex flex-col sm:flex-row sm:items-center gap-2 bg-amber-950/50 p-3 rounded-xl border border-amber-900/40">
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <Sparkles size={14} className="text-amber-400 animate-pulse" />
-                    <span className="font-bold">วิธีตอบ :</span>
+                    <Sparkles size={16} className="text-amber-400 animate-pulse" />
+                    <span className="font-extrabold">วิธีตอบ :</span>
                   </div>
-                  <span>ลากสลับตำแหน่งเพื่อจัดเรียงลำดับจากบนลงล่าง หรือ แตะเพื่อเลือกแล้วแตะอีกกล่องเพื่อสลับตำแหน่งกัน</span>
+                  <span className="font-medium">ลากสลับตำแหน่งเพื่อจัดเรียงลำดับจากบนลงล่าง หรือ แตะเพื่อเลือกแล้วแตะอีกกล่องเพื่อสลับตำแหน่งกัน</span>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {sequenceOrder.map((itemIdx, seqIdx) => {
                     const itemText = currentQuestion.items ? currentQuestion.items[itemIdx] : '';
                     const isDragged = draggedSeqIdx === seqIdx;
@@ -442,7 +442,7 @@ export default function GameplayScreen({
                         onDragEnd={handleSeqDragEnd}
                         onDrop={(e) => handleSeqDrop(e, seqIdx)}
                         onClick={() => handleSeqClickSelect(seqIdx)}
-                        className={`bg-white border p-3.5 md:p-4 rounded-xl flex items-center justify-between gap-4 transition-all duration-200 cursor-grab active:cursor-grabbing select-none relative group ${
+                        className={`bg-white border p-4 md:p-5 rounded-2xl flex items-center justify-between gap-4 transition-all duration-200 cursor-grab active:cursor-grabbing select-none relative group ${
                           isDragged
                             ? "opacity-30 scale-[0.98] border-amber-400"
                             : isSelected
@@ -450,26 +450,26 @@ export default function GameplayScreen({
                             : "border-slate-200 hover:border-amber-400/60 hover:bg-slate-50/30 shadow-md"
                         }`}
                       >
-                        <div className="flex items-center gap-3 flex-1">
+                        <div className="flex items-center gap-3.5 flex-1">
                           {/* Grip Handle */}
                           <div className={`text-slate-400 group-hover:text-amber-500 transition-colors shrink-0 ${isSelected ? "text-amber-500 animate-pulse" : ""}`}>
-                            <GripVertical size={18} />
+                            <GripVertical size={20} />
                           </div>
                           
                           {/* Rank indicator badge */}
-                          <span className={`w-8 h-8 rounded-lg font-mono text-xs md:text-sm font-bold flex items-center justify-center shrink-0 shadow-sm transition-colors ${
+                          <span className={`w-8 h-8 md:w-9 md:h-9 rounded-xl font-mono text-sm md:text-base font-extrabold flex items-center justify-center shrink-0 shadow-sm transition-colors ${
                             isSelected
                               ? "bg-amber-500 border border-amber-600 text-white"
-                              : "bg-amber-100 border border-amber-300 text-amber-800"
+                              : "bg-amber-100 border border-amber-300 text-amber-900"
                           }`}>
                             0{seqIdx + 1}
                           </span>
                           
-                          <p className="text-xs md:text-sm text-slate-950 font-semibold leading-normal flex-1">{itemText}</p>
+                          <p className="text-sm md:text-base lg:text-lg text-slate-950 font-bold leading-normal flex-1">{itemText}</p>
                         </div>
 
                         {/* Interactive status / help tip */}
-                        <div className="hidden sm:flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                        <div className="hidden sm:flex items-center gap-1 text-xs text-slate-400 font-mono">
                           {isSelected ? (
                             <span className="text-amber-600 animate-pulse font-bold">กำลังเลือก... แตะอีกช่องเพื่อสลับ</span>
                           ) : (
@@ -492,15 +492,15 @@ export default function GameplayScreen({
                 exit={{ opacity: 0, y: -10 }}
                 className="flex flex-col gap-4"
               >
-                <div className="text-xs text-cyan-400 font-mono uppercase tracking-wide flex items-center gap-1.5 bg-slate-900/40 p-2.5 rounded-xl border border-slate-900">
-                  <Sparkles size={14} className="text-cyan-400 animate-pulse" />
-                  <span>วิธีตอบ : แตะหัวข้อกล่องฝั่งซ้ายให้ขึ้นขอบสีฟ้ากระพริบ แล้วแตะกล่องคำตอบฝั่งขวาเพื่อจับคู่เข้าด้วยกัน</span>
+                <div className="text-xs md:text-sm text-cyan-300 font-sans uppercase tracking-wide flex items-center gap-2 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                  <Sparkles size={16} className="text-cyan-400 animate-pulse shrink-0" />
+                  <span className="font-medium">วิธีตอบ : แตะหัวข้อกล่องฝั่งซ้ายให้ขึ้นขอบสีฟ้ากระพริบ แล้วแตะกล่องคำตอบฝั่งขวาเพื่อจับคู่เข้าด้วยกัน</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
                   {/* Left Column: Source Items */}
                   <div className="space-y-3">
-                    <div className="text-xs font-bold text-slate-400 text-center py-2 bg-slate-900 rounded-xl font-sans border border-slate-800">
+                    <div className="text-xs md:text-sm font-bold text-slate-300 text-center py-2.5 bg-slate-900 rounded-xl font-sans border border-slate-800">
                       1. เลือกหัวข้อ (ฝั่งซ้าย)
                     </div>
                     {currentQuestion.matchingLeft?.map((leftItem, lIdx) => {
@@ -530,7 +530,7 @@ export default function GameplayScreen({
                           }`}
                         >
                           <div className="flex items-start gap-2.5">
-                            <span className={`w-5 h-5 rounded-md text-[10px] font-bold flex items-center justify-center font-mono shrink-0 mt-0.5 border ${
+                            <span className={`w-6 h-6 rounded-md text-xs font-bold flex items-center justify-center font-mono shrink-0 mt-0.5 border ${
                               isSelected
                                 ? "bg-cyan-600 border-cyan-500 text-white"
                                 : currentPair !== undefined
@@ -539,7 +539,7 @@ export default function GameplayScreen({
                             }`}>
                               {lIdx + 1}
                             </span>
-                            <span className="text-xs md:text-sm font-semibold leading-relaxed">{leftItem}</span>
+                            <span className="text-sm md:text-base lg:text-lg font-bold leading-relaxed">{leftItem}</span>
                           </div>
 
                           <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-1">
@@ -578,7 +578,7 @@ export default function GameplayScreen({
 
                   {/* Right Column: Dest Items */}
                   <div className="space-y-3">
-                    <div className="text-xs font-bold text-slate-400 text-center py-2 bg-slate-900 rounded-xl font-sans border border-slate-800">
+                    <div className="text-xs md:text-sm font-bold text-slate-300 text-center py-2.5 bg-slate-900 rounded-xl font-sans border border-slate-800">
                       2. แตะเลือกคำตอบเข้าคู่ (ฝั่งขวา)
                     </div>
                     {currentQuestion.matchingRight?.map((rightItem, rIdx) => {
@@ -612,7 +612,7 @@ export default function GameplayScreen({
                               : "bg-slate-50/80 border-slate-200 text-slate-400 opacity-70 cursor-not-allowed"
                           }`}
                         >
-                          <span className={`w-5 h-5 rounded-md text-[10px] font-bold flex items-center justify-center font-mono shrink-0 mt-0.5 border ${
+                          <span className={`w-6 h-6 rounded-md text-xs font-bold flex items-center justify-center font-mono shrink-0 mt-0.5 border ${
                             isMatched
                               ? "bg-white border-slate-300 text-slate-800"
                               : "bg-slate-100 border-slate-200 text-slate-500"
@@ -620,13 +620,13 @@ export default function GameplayScreen({
                             {isMatched ? String.fromCharCode(65 + rIdx) : "?"}
                           </span>
                           <div className="flex-1">
-                            <span className={`text-xs md:text-sm font-semibold leading-relaxed block ${
+                            <span className={`text-sm md:text-base lg:text-lg font-bold leading-relaxed block ${
                               isMatched ? 'text-inherit' : 'text-slate-800'
                             }`}>
                               {rightItem}
                             </span>
                             {isMatched && (
-                              <span className="text-[9px] font-bold block mt-1 uppercase tracking-wide opacity-80">
+                              <span className="text-[10px] md:text-xs font-bold block mt-1 uppercase tracking-wide opacity-80">
                                 เข้าคู่กับหัวข้อที่ {associatedPair.leftIdx + 1}
                               </span>
                             )}
@@ -648,25 +648,25 @@ export default function GameplayScreen({
                 exit={{ opacity: 0, y: -10 }}
                 className="flex flex-col gap-5"
               >
-                <div className="text-xs text-amber-400 font-mono uppercase tracking-wide flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 bg-slate-900/60 p-3 rounded-xl border border-slate-900">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles size={14} className="text-amber-400 animate-pulse" />
-                    <span>วิธีเล่น : ลากการ์ดข้อความไปวางในกล่อง หรือแตะการ์ดข้อความแล้วแตะเลือกกล่องเป้าหมาย!</span>
+                <div className="text-xs md:text-sm text-amber-300 font-sans uppercase tracking-wide flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={16} className="text-amber-400 animate-pulse shrink-0" />
+                    <span className="font-medium">วิธีเล่น : ลากการ์ดข้อความไปวางในกล่อง หรือแตะการ์ดข้อความแล้วแตะเลือกกล่องเป้าหมาย!</span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-normal">
+                  <span className="text-xs text-slate-400 font-normal shrink-0">
                     (รองรับการลากวางและกดแตะบนมือถือ)
                   </span>
                 </div>
 
                 {/* 1. Item Pool (Cards waiting to be classified) */}
                 <div className="bg-slate-950/20 border border-slate-900/60 p-4 rounded-2xl">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block mb-2 font-bold">
+                  <span className="text-xs font-mono text-slate-300 uppercase tracking-widest block mb-2 font-bold">
                     📋 รายการข้อความที่ต้องจัดหมวดหมู่ ({
                       currentQuestion.categorizeItems?.filter((_, idx) => categoryAssignments[idx] === undefined).length || 0
                     } ข้อความที่เหลือ)
                   </span>
 
-                  <div className="flex flex-wrap gap-2.5 min-h-[80px] items-center justify-center p-2 rounded-xl bg-slate-950/60 border border-dashed border-slate-900">
+                  <div className="flex flex-wrap gap-3 min-h-[80px] items-center justify-center p-3 rounded-xl bg-slate-950/60 border border-dashed border-slate-900">
                     {/* Unassigned Items */}
                     {(() => {
                       const unassigned = currentQuestion.categorizeItems
@@ -678,7 +678,7 @@ export default function GameplayScreen({
                           <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="text-center py-4 text-emerald-400 text-xs sm:text-sm font-medium flex items-center gap-1.5"
+                            className="text-center py-4 text-emerald-400 text-sm md:text-base font-bold flex items-center gap-2"
                           >
                             🎉 จัดกลุ่มครบถ้วนแล้ว! กรุณาตรวจความถูกต้องในแต่ละกล่อง และกดปุ่ม "ตรวจคำตอบ" ด้านล่าง
                           </motion.div>
@@ -701,7 +701,7 @@ export default function GameplayScreen({
                               audioSynth.playSfx('click');
                               setSelectedItemIdx(selectedItemIdx === item.originalIdx ? null : item.originalIdx);
                             }}
-                            className={`p-3 rounded-xl border text-xs sm:text-sm font-semibold cursor-grab active:cursor-grabbing select-none transition-all duration-200 flex items-center gap-2 max-w-full sm:max-w-md ${
+                            className={`p-3.5 rounded-xl border text-sm md:text-base lg:text-lg font-bold cursor-grab active:cursor-grabbing select-none transition-all duration-200 flex items-center gap-2.5 max-w-full sm:max-w-md ${
                               isSelected
                                 ? "bg-white border-amber-500 text-amber-950 ring-2 ring-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.25)] scale-[1.03]"
                                 : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-800 shadow-sm"
@@ -709,7 +709,7 @@ export default function GameplayScreen({
                             whileHover={{ scale: isSelected ? 1.03 : 1.01 }}
                             whileTap={{ scale: 0.98 }}
                           >
-                            <GripVertical size={14} className="text-slate-400 shrink-0 cursor-grab" />
+                            <GripVertical size={16} className="text-slate-400 shrink-0 cursor-grab" />
                             <span>{item.text}</span>
                           </motion.div>
                         );
@@ -735,8 +735,8 @@ export default function GameplayScreen({
                       ? "border-slate-900 bg-slate-950/50 hover:border-cyan-500/30"
                       : "border-slate-900 bg-slate-950/50 hover:border-purple-500/30";
 
-                    const headingColor = isBox0 ? "text-cyan-400 bg-cyan-950/60 border-cyan-500/20" : "text-purple-400 bg-purple-950/60 border-purple-500/20";
-                    const chipStyle = isBox0 ? "bg-white border-cyan-300 text-cyan-950 font-semibold shadow-sm" : "bg-white border-purple-300 text-purple-950 font-semibold shadow-sm";
+                    const headingColor = isBox0 ? "text-cyan-300 bg-cyan-950/60 border-cyan-500/20" : "text-purple-300 bg-purple-950/60 border-purple-500/20";
+                    const chipStyle = isBox0 ? "bg-white border-cyan-300 text-cyan-950 font-bold shadow-sm" : "bg-white border-purple-300 text-purple-950 font-bold shadow-sm";
 
                     // Items assigned to this box
                     const assignedItems = currentQuestion.categorizeItems
@@ -773,11 +773,11 @@ export default function GameplayScreen({
                       >
                         {/* Box Header Badge */}
                         <div className="flex items-center justify-between mb-3 border-b border-slate-900/60 pb-2">
-                          <span className={`text-[11px] font-bold font-sans uppercase px-3 py-1 rounded-xl border tracking-wide flex items-center gap-1.5 ${headingColor}`}>
-                            <Inbox size={12} className="animate-pulse" />
+                          <span className={`text-xs md:text-sm font-bold font-sans uppercase px-3 py-1 rounded-xl border tracking-wide flex items-center gap-1.5 ${headingColor}`}>
+                            <Inbox size={14} className="animate-pulse" />
                             {boxName}
                           </span>
-                          <span className="text-[10px] font-mono text-slate-500">
+                          <span className="text-xs font-mono text-slate-400">
                             ({assignedItems.length} รายการ)
                           </span>
                         </div>
@@ -785,7 +785,7 @@ export default function GameplayScreen({
                         {/* Active selection cue overlay helper */}
                         {canDropHere && assignedItems.length === 0 && !isHighlight && (
                           <div className="absolute inset-0 m-4 flex items-center justify-center pointer-events-none">
-                            <span className="text-[10px] text-slate-500 border border-dashed border-slate-800 px-3 py-2 rounded-xl text-center bg-slate-950/20">
+                            <span className="text-xs text-slate-400 border border-dashed border-slate-800 px-3 py-2 rounded-xl text-center bg-slate-950/20">
                               👉 แตะที่นี่เพื่อวางการ์ดที่เลือกไว้
                             </span>
                           </div>
@@ -805,9 +805,9 @@ export default function GameplayScreen({
                                 initial={{ opacity: 0, scale: 0.95, y: 5 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.9, y: -5 }}
-                                className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-3 ${chipStyle}`}
+                                className={`p-3 rounded-xl border text-sm md:text-base flex items-center justify-between gap-3 ${chipStyle}`}
                               >
-                                <span className="leading-relaxed font-medium">{item.text}</span>
+                                <span className="leading-relaxed font-bold">{item.text}</span>
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -817,7 +817,7 @@ export default function GameplayScreen({
                                   className="p-1 rounded-md bg-slate-50 border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 cursor-pointer transition-colors shrink-0"
                                   title="ย้ายกลับไปรายการรอดำเนินการ"
                                 >
-                                  <X size={12} />
+                                  <X size={14} />
                                 </button>
                               </motion.div>
                             ))}

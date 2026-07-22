@@ -589,28 +589,28 @@ export default function PreMissionScreen({
                 ด่านที่ {levelId} {thaiLevelName}
               </h2>
 
-              <p className="text-xs text-slate-400 max-w-md mb-6 leading-relaxed">
+              <p className="text-sm md:text-base text-slate-300 max-w-md mb-6 leading-relaxed">
                 เตรียมความพร้อมก่อนเข้าสู่ด่านโจทย์ความรู้แนวคิดเชิงคำนวณ มาร่วมฝึกฝนและทดสอบฝีมือในด่านจำลองพลังงานกันเลย!
               </p>
 
               {/* Mission Details Box */}
               <div className="w-full max-w-xl mb-6 flex flex-col gap-4 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/80 text-left">
                 <div>
-                  <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-widest font-mono mb-2 flex items-center gap-1.5">
-                    <Sparkles size={12} />
+                  <h3 className="text-xs md:text-sm font-bold text-cyan-400 uppercase tracking-widest font-mono mb-2 flex items-center gap-1.5">
+                    <Sparkles size={14} />
                     สาระความรู้เชิงคำนวณประจำฐาน
                   </h3>
-                  <div className="text-slate-200 text-xs md:text-sm leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2 custom-scrollbar font-sans">
+                  <div className="text-slate-100 text-sm md:text-base lg:text-lg leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2 custom-scrollbar font-sans font-medium">
                     {description}
                   </div>
                 </div>
 
                 <div className="border-t border-slate-800/60 pt-3">
-                  <h3 className="text-xs font-bold text-amber-400 uppercase tracking-widest font-mono mb-1 flex items-center gap-1.5">
-                    <Flame size={12} />
+                  <h3 className="text-xs md:text-sm font-bold text-amber-400 uppercase tracking-widest font-mono mb-1 flex items-center gap-1.5">
+                    <Flame size={14} />
                     คำชี้แจง
                   </h3>
-                  <p className="text-slate-300 text-xs leading-relaxed">
+                  <p className="text-slate-200 text-xs md:text-sm leading-relaxed">
                     ก่อนเริ่มทำโจทย์ในแต่ละด่าน นักเรียนจะต้องเล่นมินิเกมและควบคุมตัวละครกระโดดข้ามสิ่งกีดขวางเพื่อสะสมเหรียญพลังงานให้ครบ <span className="text-amber-300 font-bold">10 เหรียญ</span> เพื่อเปิดประตูด้านการเรียนรู้ของแต่ละด่าน!
                   </p>
                 </div>
@@ -618,7 +618,7 @@ export default function PreMissionScreen({
 
               {/* Dialogue balloon from Scout helper */}
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 w-full max-w-md mb-6 text-left relative">
-                <p className="text-slate-300 text-xs leading-normal">
+                <p className="text-slate-200 text-xs md:text-sm leading-relaxed">
                   “สวัสดีครับคุณ <span className="text-cyan-400 font-bold">{characterName}</span> ยินดีต้อนรับสู่ภารกิจด่านที่ {levelId} มาร่วมใจกระโดดเก็บเหรียญให้ครบ 10 เหรียญเพื่อเปิดด่านทดสอบและพิชิตดาวดวงนี้กันเลย!”
                 </p>
               </div>

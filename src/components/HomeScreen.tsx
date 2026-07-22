@@ -124,9 +124,12 @@ export default function HomeScreen({ onStartGame, soundEnabled, onToggleSound }:
       </div>
 
       {/* Developer Credits Info */}
-      <div className="w-full max-w-5xl text-center py-6 border-t border-slate-900 z-10">
+      <div className="w-full max-w-5xl text-center py-6 border-t border-slate-900 z-10 leading-relaxed">
         <p className="text-slate-500 text-xs tracking-wide">
-          ผู้พัฒนาระบบ : นายธีรวุฒ จำปาเรือง สาขาคอมพิวเตอร์ศึกษา คณะศึกษาศาสตร์ มหาวิทยาลัยขอนแก่น
+          ผู้พัฒนา : นายธรีวุฒ จำปาเรือง สาขาคอมพิวเตอร์ศึกษา
+        </p>
+        <p className="text-slate-500 text-xs tracking-wide mt-1">
+          คณะศึกษาศาสตร์ มหาวิทยาลัยขอนแก่น
         </p>
       </div>
 
