@@ -126,7 +126,7 @@ export default function HomeScreen({ onStartGame, soundEnabled, onToggleSound }:
       {/* Developer Credits Info */}
       <div className="w-full max-w-5xl text-center py-6 border-t border-slate-900 z-10 leading-relaxed">
         <p className="text-slate-500 text-xs tracking-wide">
-          ผู้พัฒนา : นายธรีวุฒ จำปาเรือง สาขาคอมพิวเตอร์ศึกษา
+          ผู้พัฒนา : นายธีรวุฒ จำปาเรือง สาขาคอมพิวเตอร์ศึกษา
         </p>
         <p className="text-slate-500 text-xs tracking-wide mt-1">
           คณะศึกษาศาสตร์ มหาวิทยาลัยขอนแก่น
@@ -213,7 +213,7 @@ export default function HomeScreen({ onStartGame, soundEnabled, onToggleSound }:
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-purple-400 font-bold">●</span>
-                      <span>หากหัวใจหมดลงเหลือ 0 ระบบจะถือว่าจบเกม และต้องเริ่มด่านแรกใหม่ทั้งหมดเพื่อฝึกฝนใหม่</span>
+                      <span>หากหัวใจหมดลงเหลือ 0 สามารถ <span className="text-cyan-300 font-bold">เริ่มเล่นด่านนั้นๆ ใหม่ได้ทันที</span> โดยไม่ต้องกลับไปเริ่มด่านแรก!</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-pink-400 font-bold">●</span>

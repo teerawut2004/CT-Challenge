@@ -19,6 +19,8 @@
 
 body {
   background-color: #04060b;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 /* Custom Sleek Dark Scrollbar for text briefing and containers */

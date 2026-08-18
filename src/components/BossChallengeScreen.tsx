@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Volume2, VolumeX, ArrowLeft, CheckCircle2, Heart, Sparkles, Terminal, ShieldAlert, Layers, Grid, EyeOff, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { audioSynth } from '../utils/audio';
-import { Question, BOSS_SCENARIO } from '../data/questions';
+import { Question, BOSS_SCENARIO, bossScenariosPool } from '../data/questions';
 import { localizeQuestion } from '../utils/localization';
 
 interface BossChallengeScreenProps {
@@ -28,6 +28,11 @@ export default function BossChallengeScreen({
 }: BossChallengeScreenProps) {
   const rawQuestion = questions[currentQuestionIdx];
   const currentQuestion = localizeQuestion(rawQuestion, characterName);
+
+  // Find active scenario if questions belong to one of the scenarios in the pool
+  const activeScenario = bossScenariosPool.find(sc => 
+    sc.questions.some(q => q.id === rawQuestion?.id)
+  ) || bossScenariosPool[0];
 
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [shuffledOptions, setShuffledOptions] = useState<{ text: string; originalIdx: number }[]>([]);
@@ -194,10 +199,10 @@ export default function BossChallengeScreen({
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
               <div className="p-4 rounded-xl bg-slate-900/40 border border-rose-950/40 leading-relaxed text-sm md:text-base text-slate-200">
                 <p className="font-bold text-rose-300 text-base md:text-lg mb-2">
-                  🏫 โครงการ: ศูนย์อาหารอัจฉริยะ (Smart Food Center)
+                  🎯 {activeScenario.title}
                 </p>
                 <p className="text-sm md:text-base text-slate-200 leading-relaxed">
-                  {BOSS_SCENARIO}
+                  {activeScenario.description}
                 </p>
               </div>
 
@@ -236,7 +241,7 @@ export default function BossChallengeScreen({
 
               {/* Question Text */}
               <div className="py-2">
-                <h2 className="text-base md:text-lg lg:text-xl font-bold leading-relaxed text-slate-100 whitespace-pre-line">
+                <h2 className="text-base md:text-lg lg:text-xl font-bold leading-relaxed text-slate-100 break-words">
                   {currentQuestion.question}
                 </h2>
               </div>
@@ -257,10 +262,10 @@ export default function BossChallengeScreen({
                         <button
                           key={idx}
                           onClick={() => handleOptionSelect(idx)}
-                          className={`w-full p-4 md:p-5 rounded-2xl border text-left transition-all duration-200 transform active:scale-[0.99] cursor-pointer flex items-start gap-4 relative overflow-hidden group ${
+                          className={`w-full h-auto min-h-0 p-3.5 md:p-4 rounded-2xl border text-left transition-all duration-200 transform active:scale-[0.99] cursor-pointer flex items-start gap-3.5 md:gap-4 relative overflow-hidden group ${
                             isSelected
                               ? "bg-white border-rose-500 text-slate-950 ring-2 ring-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.25)]"
-                              : "bg-slate-900/40 border-slate-800/80 hover:border-rose-500/40 hover:bg-slate-900/60 text-slate-200"
+                              : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-800"
                           }`}
                         >
                           {/* Option Prefix Circle */}
@@ -268,12 +273,12 @@ export default function BossChallengeScreen({
                             className={`w-7 h-7 md:w-8 md:h-8 rounded-xl font-mono text-sm md:text-base font-bold flex items-center justify-center shrink-0 border transition-all duration-200 mt-0.5 ${
                               isSelected
                                 ? "bg-rose-600 border-rose-500 text-white"
-                                : "bg-slate-950 border-slate-800 text-slate-400 group-hover:border-rose-500/30 group-hover:text-rose-400"
+                                : "bg-slate-100 border-slate-200 text-slate-700 group-hover:border-rose-300 group-hover:text-rose-600"
                             }`}
                           >
                             {String.fromCharCode(65 + idx)}
                           </span>
-                          <span className="text-sm md:text-base lg:text-lg font-bold leading-relaxed">
+                          <span className="text-sm md:text-base lg:text-lg font-light leading-relaxed tracking-wide text-slate-800 flex-1">
                             {optionObj.text}
                           </span>
                         </button>

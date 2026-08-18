@@ -579,7 +579,7 @@ export default function PreMissionScreen({
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -15 }}
-              className="w-full max-w-xl bg-slate-950/80 border border-slate-900 rounded-3xl p-6 md:p-8 shadow-2xl text-center flex flex-col items-center"
+              className="w-full max-w-2xl md:max-w-3xl bg-slate-950/80 border border-slate-900 rounded-3xl p-6 md:p-8 shadow-2xl text-center flex flex-col items-center"
             >
               <div className="p-3 bg-cyan-950/50 border border-cyan-500/20 rounded-full mb-4">
                 <Target className="text-cyan-400 animate-pulse" size={32} />
@@ -589,18 +589,18 @@ export default function PreMissionScreen({
                 ด่านที่ {levelId} {thaiLevelName}
               </h2>
 
-              <p className="text-sm md:text-base text-slate-300 max-w-md mb-6 leading-relaxed">
+              <p className="text-sm md:text-base text-slate-300 max-w-xl mb-6 leading-relaxed">
                 เตรียมความพร้อมก่อนเข้าสู่ด่านโจทย์ความรู้แนวคิดเชิงคำนวณ มาร่วมฝึกฝนและทดสอบฝีมือในด่านจำลองพลังงานกันเลย!
               </p>
 
               {/* Mission Details Box */}
-              <div className="w-full max-w-xl mb-6 flex flex-col gap-4 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/80 text-left">
+              <div className="w-full mb-6 flex flex-col gap-4 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/80 text-left">
                 <div>
                   <h3 className="text-xs md:text-sm font-bold text-cyan-400 uppercase tracking-widest font-mono mb-2 flex items-center gap-1.5">
                     <Sparkles size={14} />
                     สาระความรู้เชิงคำนวณประจำฐาน
                   </h3>
-                  <div className="text-slate-100 text-sm md:text-base lg:text-lg leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2 custom-scrollbar font-sans font-medium">
+                  <div className="text-slate-100 text-sm md:text-base lg:text-lg leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2 custom-scrollbar font-sans font-medium break-words">
                     {description}
                   </div>
                 </div>
@@ -608,16 +608,19 @@ export default function PreMissionScreen({
                 <div className="border-t border-slate-800/60 pt-3">
                   <h3 className="text-xs md:text-sm font-bold text-amber-400 uppercase tracking-widest font-mono mb-1 flex items-center gap-1.5">
                     <Flame size={14} />
-                    คำชี้แจง
+                    คำชี้แจงและกติกาการเล่น
                   </h3>
-                  <p className="text-slate-200 text-xs md:text-sm leading-relaxed">
-                    ก่อนเริ่มทำโจทย์ในแต่ละด่าน นักเรียนจะต้องเล่นมินิเกมและควบคุมตัวละครกระโดดข้ามสิ่งกีดขวางเพื่อสะสมเหรียญพลังงานให้ครบ <span className="text-amber-300 font-bold">10 เหรียญ</span> เพื่อเปิดประตูด้านการเรียนรู้ของแต่ละด่าน!
-                  </p>
+                  <ul className="text-slate-200 text-xs md:text-sm leading-relaxed space-y-1.5 list-disc list-inside">
+                    <li>กระโดดเก็บเหรียญพลังงานให้ครบ <span className="text-amber-300 font-bold">10 เหรียญ</span> เพื่อเปิดประตูเข้าสู่โจทย์ทดสอบประจำฐาน</li>
+                    <li>ในแต่ละด่านจะมีหัวใจพลังชีวิต <span className="text-rose-400 font-bold">3 ดวง</span> หากตอบผิดจะเสียหัวใจ 1 ดวง</li>
+                    <li>หากตอบถูกติดต่อกัน <span className="text-emerald-400 font-bold">3 ข้อติด</span> จะฟื้นฟูหัวใจกลับคืนมา 1 ดวง!</li>
+                    <li>หากหัวใจหมดลง สามารถ <span className="text-cyan-300 font-bold">เริ่มเล่นด่านนั้นๆ ใหม่ได้ทันที</span> โดยไม่ต้องย้อนกลับไปเริ่มด่านแรก!</li>
+                  </ul>
                 </div>
               </div>
 
               {/* Dialogue balloon from Scout helper */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 w-full max-w-md mb-6 text-left relative">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 w-full mb-6 text-left relative">
                 <p className="text-slate-200 text-xs md:text-sm leading-relaxed">
                   “สวัสดีครับคุณ <span className="text-cyan-400 font-bold">{characterName}</span> ยินดีต้อนรับสู่ภารกิจด่านที่ {levelId} มาร่วมใจกระโดดเก็บเหรียญให้ครบ 10 เหรียญเพื่อเปิดด่านทดสอบและพิชิตดาวดวงนี้กันเลย!”
                 </p>

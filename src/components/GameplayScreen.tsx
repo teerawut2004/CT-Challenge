@@ -38,15 +38,15 @@ export default function GameplayScreen({
   const getHighlightClass = (levelId: number) => {
     switch (levelId) {
       case 1:
-        return "text-cyan-300 bg-cyan-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-cyan-500/30 inline-block shadow-[0_0_8px_rgba(6,182,212,0.2)]";
+        return "text-cyan-300 bg-cyan-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-cyan-500/30 inline shadow-[0_0_8px_rgba(6,182,212,0.2)]";
       case 2:
-        return "text-purple-300 bg-purple-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-purple-500/30 inline-block shadow-[0_0_8px_rgba(168,85,247,0.2)]";
+        return "text-purple-300 bg-purple-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-purple-500/30 inline shadow-[0_0_8px_rgba(168,85,247,0.2)]";
       case 3:
-        return "text-pink-300 bg-pink-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-pink-500/30 inline-block shadow-[0_0_8px_rgba(236,72,153,0.2)]";
+        return "text-pink-300 bg-pink-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-pink-500/30 inline shadow-[0_0_8px_rgba(236,72,153,0.2)]";
       case 4:
-        return "text-amber-300 bg-amber-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-amber-500/30 inline-block shadow-[0_0_8px_rgba(245,158,11,0.2)]";
+        return "text-amber-300 bg-amber-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-amber-500/30 inline shadow-[0_0_8px_rgba(245,158,11,0.2)]";
       default:
-        return "text-rose-300 bg-rose-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-rose-500/30 inline-block shadow-[0_0_8px_rgba(244,63,94,0.2)]";
+        return "text-rose-300 bg-rose-950/60 font-bold px-1.5 py-0.5 mx-0.5 rounded border border-rose-500/30 inline shadow-[0_0_8px_rgba(244,63,94,0.2)]";
     }
   };
 
@@ -361,11 +361,11 @@ export default function GameplayScreen({
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col gap-6 relative z-10 mt-2">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6 relative z-10 mt-2">
         
         {/* Simple elegant inline question description */}
-        <div className="mb-3 px-1">
-          <p className="text-slate-100 text-base md:text-lg lg:text-xl font-bold leading-relaxed">
+        <div className="mb-1 px-1">
+          <p className="text-slate-100 text-base md:text-lg lg:text-xl font-bold leading-relaxed break-words">
             {renderHighlightedText(currentQuestion.question)}
           </p>
         </div>
@@ -380,7 +380,7 @@ export default function GameplayScreen({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="grid grid-cols-1 gap-3.5"
+                className="grid grid-cols-1 gap-3 w-full"
               >
                 {shuffledOptions.map((optionObj, idx) => {
                   const isSelected = selectedOption === idx;
@@ -388,7 +388,7 @@ export default function GameplayScreen({
                     <button
                       key={idx}
                       onClick={() => handleOptionSelect(idx)}
-                      className={`w-full p-4 md:p-5 rounded-2xl border text-left transition-all duration-200 transform active:scale-[0.99] cursor-pointer flex items-center gap-4 relative overflow-hidden ${
+                      className={`w-full h-auto min-h-0 p-3.5 md:p-4 rounded-2xl border text-left transition-all duration-200 transform active:scale-[0.99] cursor-pointer flex items-start gap-3.5 md:gap-4 relative overflow-hidden ${
                         isSelected
                           ? "bg-white border-cyan-500 text-slate-950 ring-2 ring-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.25)]"
                           : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-800"
@@ -396,7 +396,7 @@ export default function GameplayScreen({
                     >
                       {/* Left Badge number */}
                       <span
-                        className={`w-7 h-7 md:w-8 md:h-8 rounded-xl font-mono text-sm md:text-base font-bold flex items-center justify-center shrink-0 border ${
+                        className={`w-7 h-7 md:w-8 md:h-8 rounded-xl font-mono text-sm md:text-base font-bold flex items-center justify-center shrink-0 border mt-0.5 ${
                           isSelected
                             ? "bg-cyan-600 border-cyan-500 text-white"
                             : "bg-slate-100 border-slate-200 text-slate-700"
@@ -404,7 +404,7 @@ export default function GameplayScreen({
                       >
                         {idx + 1}
                       </span>
-                      <span className="text-base md:text-lg lg:text-xl font-bold leading-snug">{optionObj.text}</span>
+                      <span className="text-sm md:text-base lg:text-lg font-light leading-relaxed tracking-wide text-slate-800 flex-1">{optionObj.text}</span>
                     </button>
                   );
                 })}
@@ -420,12 +420,10 @@ export default function GameplayScreen({
                 exit={{ opacity: 0, y: -10 }}
                 className="flex flex-col gap-3.5"
               >
-                <div className="text-xs md:text-sm text-amber-300 font-sans mb-1.5 uppercase tracking-wide flex flex-col sm:flex-row sm:items-center gap-2 bg-amber-950/50 p-3 rounded-xl border border-amber-900/40">
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Sparkles size={16} className="text-amber-400 animate-pulse" />
-                    <span className="font-extrabold">วิธีตอบ :</span>
-                  </div>
-                  <span className="font-medium">ลากสลับตำแหน่งเพื่อจัดเรียงลำดับจากบนลงล่าง หรือ แตะเพื่อเลือกแล้วแตะอีกกล่องเพื่อสลับตำแหน่งกัน</span>
+                <div className="text-xs md:text-sm text-amber-300 font-sans mb-1 uppercase tracking-wide flex items-center gap-1.5 bg-amber-950/50 p-3 rounded-xl border border-amber-900/40">
+                  <Sparkles size={16} className="text-amber-400 animate-pulse shrink-0" />
+                  <span className="font-extrabold">วิธีตอบ :</span>
+                  <span className="font-medium">ลากหรือแตะสลับกล่องเพื่อจัดเรียงลำดับบล็อกคำสั่ง</span>
                 </div>
 
                 <div className="space-y-3">
@@ -433,6 +431,7 @@ export default function GameplayScreen({
                     const itemText = currentQuestion.items ? currentQuestion.items[itemIdx] : '';
                     const isDragged = draggedSeqIdx === seqIdx;
                     const isSelected = selectedSeqIdx === seqIdx;
+
                     return (
                       <div
                         key={itemIdx}
@@ -465,7 +464,7 @@ export default function GameplayScreen({
                             0{seqIdx + 1}
                           </span>
                           
-                          <p className="text-sm md:text-base lg:text-lg text-slate-950 font-bold leading-normal flex-1">{itemText}</p>
+                          <p className="text-sm md:text-base lg:text-lg text-slate-950 font-light leading-relaxed tracking-wide flex-1">{itemText}</p>
                         </div>
 
                         {/* Interactive status / help tip */}
@@ -539,7 +538,7 @@ export default function GameplayScreen({
                             }`}>
                               {lIdx + 1}
                             </span>
-                            <span className="text-sm md:text-base lg:text-lg font-bold leading-relaxed">{leftItem}</span>
+                            <span className="text-sm md:text-base lg:text-lg font-light leading-relaxed tracking-wide">{leftItem}</span>
                           </div>
 
                           <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-1">
@@ -620,7 +619,7 @@ export default function GameplayScreen({
                             {isMatched ? String.fromCharCode(65 + rIdx) : "?"}
                           </span>
                           <div className="flex-1">
-                            <span className={`text-sm md:text-base lg:text-lg font-bold leading-relaxed block ${
+                            <span className={`text-sm md:text-base lg:text-lg font-light leading-relaxed tracking-wide block ${
                               isMatched ? 'text-inherit' : 'text-slate-800'
                             }`}>
                               {rightItem}
@@ -701,7 +700,7 @@ export default function GameplayScreen({
                               audioSynth.playSfx('click');
                               setSelectedItemIdx(selectedItemIdx === item.originalIdx ? null : item.originalIdx);
                             }}
-                            className={`p-3.5 rounded-xl border text-sm md:text-base lg:text-lg font-bold cursor-grab active:cursor-grabbing select-none transition-all duration-200 flex items-center gap-2.5 max-w-full sm:max-w-md ${
+                            className={`p-3.5 rounded-xl border text-sm md:text-base lg:text-lg font-light cursor-grab active:cursor-grabbing select-none transition-all duration-200 flex items-center gap-2.5 max-w-full ${
                               isSelected
                                 ? "bg-white border-amber-500 text-amber-950 ring-2 ring-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.25)] scale-[1.03]"
                                 : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-800 shadow-sm"
@@ -710,7 +709,7 @@ export default function GameplayScreen({
                             whileTap={{ scale: 0.98 }}
                           >
                             <GripVertical size={16} className="text-slate-400 shrink-0 cursor-grab" />
-                            <span>{item.text}</span>
+                            <span className="leading-relaxed tracking-wide">{item.text}</span>
                           </motion.div>
                         );
                       });
@@ -736,7 +735,7 @@ export default function GameplayScreen({
                       : "border-slate-900 bg-slate-950/50 hover:border-purple-500/30";
 
                     const headingColor = isBox0 ? "text-cyan-300 bg-cyan-950/60 border-cyan-500/20" : "text-purple-300 bg-purple-950/60 border-purple-500/20";
-                    const chipStyle = isBox0 ? "bg-white border-cyan-300 text-cyan-950 font-bold shadow-sm" : "bg-white border-purple-300 text-purple-950 font-bold shadow-sm";
+                    const chipStyle = isBox0 ? "bg-white border-cyan-300 text-cyan-950 font-light shadow-sm" : "bg-white border-purple-300 text-purple-950 font-light shadow-sm";
 
                     // Items assigned to this box
                     const assignedItems = currentQuestion.categorizeItems
@@ -807,7 +806,7 @@ export default function GameplayScreen({
                                 exit={{ opacity: 0, scale: 0.9, y: -5 }}
                                 className={`p-3 rounded-xl border text-sm md:text-base flex items-center justify-between gap-3 ${chipStyle}`}
                               >
-                                <span className="leading-relaxed font-bold">{item.text}</span>
+                                <span className="leading-relaxed font-light tracking-wide">{item.text}</span>
                                 <button
                                   type="button"
                                   onClick={(e) => {

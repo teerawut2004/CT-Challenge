@@ -7,8 +7,9 @@ import BossChallengeScreen from './components/BossChallengeScreen';
 import PreMissionScreen from './components/PreMissionScreen';
 import RegistrationScreen from './components/RegistrationScreen';
 import FeedbackOverlay from './components/FeedbackOverlay';
-import { questionsData } from './data/questions';
+import { questionsData, Question } from './data/questions';
 import { audioSynth } from './utils/audio';
+import { getRandomizedQuestionsForLevel } from './utils/questionRandomizer';
 
 type ScreenType = 'home' | 'map' | 'gameplay' | 'boss' | 'premission' | 'registration';
 type FeedbackType = 'correct' | 'incorrect' | 'gameover' | 'level-completed' | null;
@@ -31,6 +32,7 @@ export default function App() {
 
   // --- Active Level State variables ---
   const [currentLevelId, setCurrentLevelId] = useState<number>(1);
+  const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState<number>(0);
   const [hearts, setHearts] = useState<number>(3);
   const [correctStreak, setCorrectStreak] = useState<number>(0);
@@ -152,6 +154,8 @@ export default function App() {
 
   const handleSelectLevel = (levelId: number) => {
     setCurrentLevelId(levelId);
+    const qs = getRandomizedQuestionsForLevel(levelId, levelId === 5 ? 4 : 5);
+    setActiveQuestions(qs);
     setCurrentQuestionIdx(0);
     setHearts(3);
     setCorrectStreak(0);
@@ -166,9 +170,11 @@ export default function App() {
   // --- Answer evaluation ---
   const handleAnswerSubmit = (isCorrect: boolean, selectedAnswer: any) => {
     const currentLevel = questionsData.find(lvl => lvl.id === currentLevelId);
-    if (!currentLevel) return;
+    const currentQuestionsList = activeQuestions.length > 0 ? activeQuestions : (currentLevel?.questions || []);
+    if (!currentQuestionsList || currentQuestionsList.length === 0) return;
 
-    const currentQuestion = currentLevel.questions[currentQuestionIdx];
+    const currentQuestion = currentQuestionsList[currentQuestionIdx];
+    if (!currentQuestion) return;
 
     if (isCorrect) {
       audioSynth.playSfx('correct');
@@ -186,7 +192,7 @@ export default function App() {
       }
 
       // Check if level fully completed
-      const isLastQuestion = currentQuestionIdx === currentLevel.questions.length - 1;
+      const isLastQuestion = currentQuestionIdx === currentQuestionsList.length - 1;
       if (isLastQuestion) {
         setShowFeedback('level-completed');
       } else {
@@ -221,7 +227,9 @@ export default function App() {
       setShowFeedback(null);
     } 
     else if (showFeedback === 'gameover') {
-      // Restart current level instead of resetting back to Level 1
+      // Restart current level with a fresh randomized set of questions
+      const qs = getRandomizedQuestionsForLevel(currentLevelId, currentLevelId === 5 ? 4 : 5);
+      setActiveQuestions(qs);
       setCurrentQuestionIdx(0);
       setHearts(3);
       setCorrectStreak(0);
@@ -371,7 +379,7 @@ export default function App() {
           levelId={activeLevel.id}
           levelName={activeLevel.name}
           thaiLevelName={activeLevel.thaiName}
-          questions={activeLevel.questions}
+          questions={activeQuestions.length > 0 ? activeQuestions : activeLevel.questions}
           currentQuestionIdx={currentQuestionIdx}
           hearts={hearts}
           characterName={characterName}
@@ -387,7 +395,7 @@ export default function App() {
       {/* 4. Boss Challenge Screen (Level 5) */}
       {currentScreen === 'boss' && activeLevel && (
         <BossChallengeScreen
-          questions={activeLevel.questions}
+          questions={activeQuestions.length > 0 ? activeQuestions : activeLevel.questions}
           currentQuestionIdx={currentQuestionIdx}
           hearts={hearts}
           characterName={characterName}
