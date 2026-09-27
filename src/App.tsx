@@ -299,85 +299,86 @@ export default function App() {
   const activeLevel = questionsData.find(lvl => lvl.id === currentLevelId);
 
   return (
-    <div className="bg-[#0B0F19] min-h-screen text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
-      
-      {/* 1. Home Screen (Title + Rules modal + Traveler Profile Creation) */}
-      {currentScreen === 'home' && (
-        <HomeScreen
-          onStartAdventure={handleStartAdventure}
-          soundEnabled={soundEnabled}
-          onToggleSound={handleToggleSound}
-        />
-      )}
+    <div className="bg-[#0B0F19] h-screen w-screen overflow-hidden flex flex-col text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
+      <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
+        {/* 1. Home Screen (Title + Rules modal + Traveler Profile Creation) */}
+        {currentScreen === 'home' && (
+          <HomeScreen
+            onStartAdventure={handleStartAdventure}
+            soundEnabled={soundEnabled}
+            onToggleSound={handleToggleSound}
+          />
+        )}
 
-      {/* 2. Main Game Screen: Grid Travel Mission Screen (5x5 Matrix + Console) */}
-      {currentScreen === 'grid-mission' && (
-        <TravelMissionScreen
-          currentLevelId={currentLevelId}
-          maxUnlockedLevel={maxUnlockedLevel}
-          completedLevels={completedLevels}
-          travelerName={travelerName}
-          travelerGender={travelerGender}
-          hearts={hearts}
-          onHeartsChange={setHearts}
-          totalAccumulatedScore={totalAccumulatedScore}
-          levelGridScores={levelGridScores}
-          levelGridBlocksUsed={levelGridBlocksUsed}
-          onLevelChange={(newLevelId) => setCurrentLevelId(newLevelId)}
-          onMissionSuccess={handleGridMissionSuccess}
-          onExitToHome={() => setCurrentScreen('home')}
-          soundEnabled={soundEnabled}
-          onToggleSound={handleToggleSound}
-        />
-      )}
+        {/* 2. Main Game Screen: Grid Travel Mission Screen (5x5 Matrix + Console) */}
+        {currentScreen === 'grid-mission' && (
+          <TravelMissionScreen
+            currentLevelId={currentLevelId}
+            maxUnlockedLevel={maxUnlockedLevel}
+            completedLevels={completedLevels}
+            travelerName={travelerName}
+            travelerGender={travelerGender}
+            hearts={hearts}
+            onHeartsChange={setHearts}
+            totalAccumulatedScore={totalAccumulatedScore}
+            levelGridScores={levelGridScores}
+            levelGridBlocksUsed={levelGridBlocksUsed}
+            onLevelChange={(newLevelId) => setCurrentLevelId(newLevelId)}
+            onMissionSuccess={handleGridMissionSuccess}
+            onExitToHome={() => setCurrentScreen('home')}
+            soundEnabled={soundEnabled}
+            onToggleSound={handleToggleSound}
+          />
+        )}
 
-      {/* 3. Gameplay Screen: CT Questions for Levels 1-4 */}
-      {currentScreen === 'gameplay' && activeLevel && (
-        <GameplayScreen
-          levelId={activeLevel.id}
-          levelName={activeLevel.name}
-          thaiLevelName={activeLevel.thaiName}
-          questions={activeQuestions.length > 0 ? activeQuestions : activeLevel.questions}
-          currentQuestionIdx={currentQuestionIdx}
-          hearts={hearts}
-          characterName={travelerName}
-          onAnswerSubmit={handleAnswerSubmit}
-          onExit={() => {
-            setCurrentScreen('grid-mission');
-          }}
-          soundEnabled={soundEnabled}
-          onToggleSound={handleToggleSound}
-        />
-      )}
+        {/* 3. Gameplay Screen: CT Questions for Levels 1-4 */}
+        {currentScreen === 'gameplay' && activeLevel && (
+          <GameplayScreen
+            levelId={activeLevel.id}
+            levelName={activeLevel.name}
+            thaiLevelName={activeLevel.thaiName}
+            questions={activeQuestions.length > 0 ? activeQuestions : activeLevel.questions}
+            currentQuestionIdx={currentQuestionIdx}
+            hearts={hearts}
+            characterName={travelerName}
+            onAnswerSubmit={handleAnswerSubmit}
+            onExit={() => {
+              setCurrentScreen('grid-mission');
+            }}
+            soundEnabled={soundEnabled}
+            onToggleSound={handleToggleSound}
+          />
+        )}
 
-      {/* 4. Boss Challenge Screen: CT Questions for Level 5 */}
-      {currentScreen === 'boss' && activeLevel && (
-        <BossChallengeScreen
-          questions={activeQuestions.length > 0 ? activeQuestions : activeLevel.questions}
-          currentQuestionIdx={currentQuestionIdx}
-          hearts={hearts}
-          characterName={travelerName}
-          onAnswerSubmit={handleAnswerSubmit}
-          onExit={() => {
-            setCurrentScreen('grid-mission');
-          }}
-          soundEnabled={soundEnabled}
-          onToggleSound={handleToggleSound}
-        />
-      )}
+        {/* 4. Boss Challenge Screen: CT Questions for Level 5 */}
+        {currentScreen === 'boss' && activeLevel && (
+          <BossChallengeScreen
+            questions={activeQuestions.length > 0 ? activeQuestions : activeLevel.questions}
+            currentQuestionIdx={currentQuestionIdx}
+            hearts={hearts}
+            characterName={travelerName}
+            onAnswerSubmit={handleAnswerSubmit}
+            onExit={() => {
+              setCurrentScreen('grid-mission');
+            }}
+            soundEnabled={soundEnabled}
+            onToggleSound={handleToggleSound}
+          />
+        )}
 
-      {/* 5. Final Tech Analytics Dashboard Screen (Automatic after completing all 5 levels) */}
-      {currentScreen === 'final-dashboard' && (
-        <FinalDashboardScreen
-          travelerName={travelerName}
-          travelerGender={travelerGender}
-          totalAccumulatedScore={totalAccumulatedScore}
-          levelScores={levelScores}
-          levelGridScores={levelGridScores}
-          levelGridBlocksUsed={levelGridBlocksUsed}
-          onPlayAgain={handlePlayAgain}
-        />
-      )}
+        {/* 5. Final Tech Analytics Dashboard Screen (Automatic after completing all 5 levels) */}
+        {currentScreen === 'final-dashboard' && (
+          <FinalDashboardScreen
+            travelerName={travelerName}
+            travelerGender={travelerGender}
+            totalAccumulatedScore={totalAccumulatedScore}
+            levelScores={levelScores}
+            levelGridScores={levelGridScores}
+            levelGridBlocksUsed={levelGridBlocksUsed}
+            onPlayAgain={handlePlayAgain}
+          />
+        )}
+      </div>
 
       {/* Feedback Overlay Modals (Correct / Incorrect Hint / Level Completed / Game Over) */}
       <AnimatePresence>

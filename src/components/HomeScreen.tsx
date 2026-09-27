@@ -69,7 +69,7 @@ export default function HomeScreen({ onStartAdventure, soundEnabled, onToggleSou
   const isReady = travelerName.trim().length > 0 && selectedGender !== null;
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-between bg-radial from-slate-900 via-[#0B0F19] to-[#04060b] text-white overflow-hidden font-sans px-4 select-none py-4">
+    <div className="relative h-full w-full flex flex-col items-center justify-between bg-radial from-slate-900 via-[#0B0F19] to-[#04060b] text-white overflow-hidden font-sans px-4 select-none py-2.5">
       {/* Decorative background grid */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.03)_1px,transparent_1px)] bg-[size:36px_36px] pointer-events-none" />
       
@@ -78,7 +78,7 @@ export default function HomeScreen({ onStartAdventure, soundEnabled, onToggleSou
       <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-[450px] h-[450px] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none" />
 
       {/* Top Bar with Sound Toggle and Rules Button */}
-      <div className="w-full max-w-5xl flex justify-between items-center z-10 pt-2">
+      <div className="w-full max-w-6xl flex justify-between items-center z-10 pt-1 shrink-0">
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 bg-cyan-950/60 border border-cyan-800/60 rounded-lg text-cyan-400 font-mono text-xs tracking-wider flex items-center gap-1.5 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
             <Compass size={14} className="animate-spin text-cyan-400" /> ม.2 วิทยาการคำนวณ
@@ -88,72 +88,72 @@ export default function HomeScreen({ onStartAdventure, soundEnabled, onToggleSou
         <div className="flex items-center gap-3">
           <button
             onClick={openRules}
-            className="px-3.5 py-2 bg-slate-900/80 border border-cyan-500/40 hover:border-cyan-400 hover:bg-slate-800/90 rounded-xl transition-all duration-300 text-cyan-300 hover:text-cyan-200 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.15)] flex items-center gap-2 text-xs md:text-sm font-semibold"
+            className="px-3.5 py-1.5 bg-slate-900/80 border border-cyan-500/40 hover:border-cyan-400 hover:bg-slate-800/90 rounded-xl transition-all duration-300 text-cyan-300 hover:text-cyan-200 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.15)] flex items-center gap-2 text-xs md:text-sm font-semibold"
             id="open-rules-btn"
           >
-            <HelpCircle size={18} className="text-cyan-400" />
+            <HelpCircle size={17} className="text-cyan-400" />
             <span>แนะนำภารกิจและกติกา</span>
           </button>
 
           <button
             onClick={handleToggleAudio}
-            className="p-2.5 bg-slate-950/70 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-900/80 rounded-xl transition-all duration-300 text-cyan-400 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.15)]"
+            className="p-2 bg-slate-950/70 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-900/80 rounded-xl transition-all duration-300 text-cyan-400 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.15)]"
             title={soundEnabled ? "ปิดเสียง" : "เปิดเสียง"}
             id="audio-toggle-btn"
           >
-            {soundEnabled ? <Volume2 size={20} className="animate-pulse" /> : <VolumeX size={20} />}
+            {soundEnabled ? <Volume2 size={18} className="animate-pulse" /> : <VolumeX size={18} />}
           </button>
         </div>
       </div>
 
       {/* Main Center Area: Title & Profile Creation Form */}
-      <div className="flex-1 flex flex-col items-center justify-center max-w-3xl w-full text-center z-10 py-6 my-auto">
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center max-w-2xl w-full text-center z-10 py-1 my-auto">
         {/* Title */}
         <motion.div
-          initial={{ opacity: 0, y: -25 }}
+          initial={{ opacity: 0, y: -15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          className="relative mb-5"
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="relative mb-3"
         >
-          <div className="absolute -inset-10 bg-radial from-cyan-500/15 to-transparent blur-2xl pointer-events-none" />
+          <div className="absolute -inset-6 bg-radial from-cyan-500/15 to-transparent blur-2xl pointer-events-none" />
           <h1 
             id="app-title"
-            className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-widest bg-gradient-to-r from-cyan-400 via-teal-300 to-purple-400 bg-clip-text text-transparent filter drop-shadow-[0_0_20px_rgba(6,182,212,0.4)] font-mono uppercase"
+            className="text-4xl sm:text-5xl font-extrabold tracking-widest bg-gradient-to-r from-cyan-400 via-teal-300 to-purple-400 bg-clip-text text-transparent filter drop-shadow-[0_0_20px_rgba(6,182,212,0.4)] font-mono uppercase leading-tight"
           >
             CT Challenge
           </h1>
-          <p className="text-xs sm:text-sm font-mono text-cyan-400/90 mt-2 tracking-widest uppercase flex items-center justify-center gap-2">
-            <Sparkles size={14} className="text-cyan-400" />
+          <p className="text-xs font-mono text-cyan-400/90 mt-1 tracking-widest uppercase flex items-center justify-center gap-2">
+            <Sparkles size={13} className="text-cyan-400" />
             ภารกิจโค้ดดิ้งท่องเมืองฝึกคิดเชิงคำนวณ
-            <Sparkles size={14} className="text-cyan-400" />
+            <Sparkles size={13} className="text-cyan-400" />
           </p>
         </motion.div>
 
         {/* Traveler Profile Creation Form Card */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="w-full max-w-xl bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,0.6)] text-left relative overflow-hidden"
+          transition={{ delay: 0.15, duration: 0.5 }}
+          className="w-full max-w-lg bg-slate-900/80 border border-slate-800 rounded-3xl p-4 sm:p-5 backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,0.6)] text-left relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-40 h-40 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
 
-          <div className="flex items-center gap-2.5 pb-4 border-b border-slate-800/80 mb-5">
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.3)]">
-              <User size={20} />
+          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-800/80 mb-3.5">
+            <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.3)] shrink-0">
+              <User size={18} />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
                 สร้างโปรไฟล์นักเดินทาง
               </h2>
-              <p className="text-xs text-slate-400">กรอกข้อมูลผู้เรียนและเลือกอวตารเพื่อเริ่มการเดินทางตะลุยด่าน</p>
+              <p className="text-[11px] text-slate-400">กรอกข้อมูลผู้เรียนและเลือกอวตารเพื่อเริ่มการเดินทางตะลุยด่าน</p>
             </div>
           </div>
 
-          <form onSubmit={handleStart} className="space-y-5">
+          <form onSubmit={handleStart} className="space-y-3.5">
             {/* Input Name */}
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
                 <span>ชื่อ - นามสกุล ผู้เรียน</span>
                 <span className="text-rose-400">*</span>
               </label>
@@ -165,51 +165,51 @@ export default function HomeScreen({ onStartAdventure, soundEnabled, onToggleSou
                   if (nameError) setNameError(false);
                 }}
                 placeholder="เช่น ด.ช.สมชาย ใจดี"
-                className={`w-full px-4 py-3 rounded-xl bg-slate-950/80 border ${
+                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border ${
                   nameError ? 'border-rose-500 ring-2 ring-rose-500/30' : 'border-slate-700 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20'
-                } text-slate-100 placeholder-slate-500 text-sm md:text-base outline-none transition-all duration-200 font-medium`}
+                } text-slate-100 placeholder-slate-500 text-sm outline-none transition-all duration-200 font-medium`}
                 id="traveler-name-input"
               />
               {nameError && (
-                <p className="text-rose-400 text-xs mt-1.5 flex items-center gap-1">
-                  <ShieldAlert size={14} /> กรุณากรอกชื่อ-นามสกุลก่อนเข้าสู่การผจญภัย
+                <p className="text-rose-400 text-xs mt-1 flex items-center gap-1">
+                  <ShieldAlert size={13} /> กรุณากรอกชื่อ-นามสกุลก่อนเข้าสู่การผจญภัย
                 </p>
               )}
             </div>
 
             {/* Avatar & Gender Selection */}
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-300 mb-2.5 flex items-center gap-1.5">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
                 <span>เลือกเพศ / อวตารนักเดินทาง</span>
                 <span className="text-rose-400">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 {/* Female Traveler Option */}
                 <div
                   onClick={() => {
                     audioSynth.playSfx('click');
                     setSelectedGender('female');
                   }}
-                  className={`p-3.5 sm:p-4 rounded-2xl border transition-all duration-300 cursor-pointer text-center select-none flex flex-col items-center justify-center gap-2 ${
+                  className={`p-3 rounded-2xl border transition-all duration-300 cursor-pointer text-center select-none flex flex-col items-center justify-center gap-1.5 ${
                     selectedGender === 'female'
-                      ? 'bg-gradient-to-b from-pink-950/60 to-slate-900 border-pink-400 ring-2 ring-pink-400/60 shadow-[0_0_25px_rgba(244,63,94,0.35)] scale-[1.02]'
+                      ? 'bg-gradient-to-b from-pink-950/60 to-slate-900 border-pink-400 ring-2 ring-pink-400/60 shadow-[0_0_20px_rgba(244,63,94,0.35)] scale-[1.01]'
                       : 'bg-slate-950/60 border-slate-800 hover:border-pink-500/40 hover:bg-slate-900/60 opacity-80 hover:opacity-100'
                   }`}
                   id="avatar-female-btn"
                 >
-                  <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center text-3xl sm:text-4xl transition-transform duration-300 ${
-                    selectedGender === 'female' ? 'bg-pink-500/20 border-2 border-pink-400 shadow-[0_0_15px_rgba(244,63,94,0.4)] scale-110' : 'bg-slate-900 border border-slate-700'
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl transition-transform duration-300 ${
+                    selectedGender === 'female' ? 'bg-pink-500/20 border-2 border-pink-400 shadow-[0_0_12px_rgba(244,63,94,0.4)] scale-105' : 'bg-slate-900 border border-slate-700'
                   }`}>
                     👧
                   </div>
                   <div>
-                    <span className={`text-xs sm:text-sm font-bold block ${selectedGender === 'female' ? 'text-pink-300' : 'text-slate-300'}`}>
+                    <span className={`text-xs font-bold block ${selectedGender === 'female' ? 'text-pink-300' : 'text-slate-300'}`}>
                       นักเดินทางหญิง
                     </span>
                     <span className="text-[10px] text-slate-400">พอใจ (Porjai)</span>
                   </div>
                   {selectedGender === 'female' && (
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-pink-500 text-slate-950 font-bold">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-pink-500 text-slate-950 font-bold leading-none">
                       ✓ เลือกแล้ว
                     </span>
                   )}
@@ -221,26 +221,26 @@ export default function HomeScreen({ onStartAdventure, soundEnabled, onToggleSou
                     audioSynth.playSfx('click');
                     setSelectedGender('male');
                   }}
-                  className={`p-3.5 sm:p-4 rounded-2xl border transition-all duration-300 cursor-pointer text-center select-none flex flex-col items-center justify-center gap-2 ${
+                  className={`p-3 rounded-2xl border transition-all duration-300 cursor-pointer text-center select-none flex flex-col items-center justify-center gap-1.5 ${
                     selectedGender === 'male'
-                      ? 'bg-gradient-to-b from-cyan-950/60 to-slate-900 border-cyan-400 ring-2 ring-cyan-400/60 shadow-[0_0_25px_rgba(6,182,212,0.35)] scale-[1.02]'
+                      ? 'bg-gradient-to-b from-cyan-950/60 to-slate-900 border-cyan-400 ring-2 ring-cyan-400/60 shadow-[0_0_20px_rgba(6,182,212,0.35)] scale-[1.01]'
                       : 'bg-slate-950/60 border-slate-800 hover:border-cyan-500/40 hover:bg-slate-900/60 opacity-80 hover:opacity-100'
                   }`}
                   id="avatar-male-btn"
                 >
-                  <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center text-3xl sm:text-4xl transition-transform duration-300 ${
-                    selectedGender === 'male' ? 'bg-cyan-500/20 border-2 border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.4)] scale-110' : 'bg-slate-900 border border-slate-700'
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl transition-transform duration-300 ${
+                    selectedGender === 'male' ? 'bg-cyan-500/20 border-2 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.4)] scale-105' : 'bg-slate-900 border border-slate-700'
                   }`}>
                     👦
                   </div>
                   <div>
-                    <span className={`text-xs sm:text-sm font-bold block ${selectedGender === 'male' ? 'text-cyan-300' : 'text-slate-300'}`}>
+                    <span className={`text-xs font-bold block ${selectedGender === 'male' ? 'text-cyan-300' : 'text-slate-300'}`}>
                       นักเดินทางชาย
                     </span>
                     <span className="text-[10px] text-slate-400">กวิน (Kawin)</span>
                   </div>
                   {selectedGender === 'male' && (
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-400 text-slate-950 font-bold">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-400 text-slate-950 font-bold leading-none">
                       ✓ เลือกแล้ว
                     </span>
                   )}
@@ -249,22 +249,22 @@ export default function HomeScreen({ onStartAdventure, soundEnabled, onToggleSou
             </div>
 
             {/* Action Submit Button */}
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 type="submit"
                 disabled={!isReady}
-                className={`w-full py-4 rounded-2xl font-extrabold text-base md:text-lg tracking-wider transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
+                className={`w-full py-3 rounded-2xl font-extrabold text-sm md:text-base tracking-wider transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
                   isReady
-                    ? 'bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 transform hover:scale-[1.02] active:scale-95 shadow-[0_0_30px_rgba(6,182,212,0.4)]'
+                    ? 'bg-gradient-to-r from-cyan-500 via-teal-400 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(6,182,212,0.4)]'
                     : 'bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed'
                 }`}
                 id="enter-adventure-btn"
               >
                 <span>เข้าสู่การผจญภัย</span>
-                <Play size={20} fill="currentColor" />
+                <Play size={18} fill="currentColor" />
               </button>
               {!isReady && (
-                <p className="text-[11px] text-center text-slate-500 mt-2 font-mono">
+                <p className="text-[10px] text-center text-slate-500 mt-1.5 font-mono">
                   * กรุณากรอกชื่อและเลือกอวตารให้ครบเพื่อเปิดใช้งานปุ่ม
                 </p>
               )}
@@ -274,14 +274,15 @@ export default function HomeScreen({ onStartAdventure, soundEnabled, onToggleSou
       </div>
 
       {/* Footer Info & Developer Credits */}
-      <div className="w-full text-center py-2.5 z-10 flex flex-col items-center gap-1 border-t border-slate-800/60 bg-slate-950/40 backdrop-blur-sm mt-4">
+      <div className="w-full text-center py-1.5 z-10 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-3 border-t border-slate-800/60 bg-slate-950/40 backdrop-blur-sm shrink-0">
         <div className="text-[11px] text-slate-500 font-mono">
           CT Challenge • นวัตกรรมเกมส่งเสริมทักษะการคิดเชิงคำนวณ ชั้น ม.2
         </div>
-        <div className="text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
+        <span className="hidden sm:inline text-slate-700">|</span>
+        <div className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
           <span className="font-semibold text-cyan-400">ผู้พัฒนา :</span>
           <span className="text-slate-300 font-medium">นายธีรวุฒ จำปาเรือง สาขาคอมพิวเตอร์ศึกษา</span>
-          <span className="hidden sm:inline text-slate-600">•</span>
+          <span className="text-slate-600">•</span>
           <span className="text-slate-400">คณะศึกษาศาสตร์ มหาวิทยาลัยขอนแก่น</span>
         </div>
       </div>

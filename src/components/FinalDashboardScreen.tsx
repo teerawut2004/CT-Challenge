@@ -108,7 +108,7 @@ export default function FinalDashboardScreen({
       : 'ระดับผ่านเกณฑ์ (Pass)';
 
   return (
-    <div className="min-h-[calc(100vh-44px)] bg-radial from-slate-900 via-[#0B0F19] to-[#04060b] text-white flex flex-col items-center justify-center px-4 py-3 font-sans select-none relative overflow-hidden">
+    <div className="h-full w-full bg-radial from-slate-900 via-[#0B0F19] to-[#04060b] text-white flex flex-col items-center justify-center px-4 py-2 font-sans select-none relative overflow-hidden">
       {/* Subtle background grid */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.02)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
 
@@ -116,7 +116,7 @@ export default function FinalDashboardScreen({
         initial={{ opacity: 0, scale: 0.97, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="w-full max-w-4xl mx-auto z-10 bg-slate-900/85 border border-slate-800 rounded-3xl p-5 sm:p-6 backdrop-blur-md shadow-2xl"
+        className="w-full max-w-5xl mx-auto z-10 bg-slate-900/85 border border-slate-800 rounded-3xl p-4 sm:p-5 backdrop-blur-md shadow-2xl"
       >
         {/* 1. COMPACT HEADER & PROFILE ROW */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-4 border-b border-slate-800">

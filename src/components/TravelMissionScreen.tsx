@@ -629,12 +629,12 @@ export default function TravelMissionScreen({
   );
 
   return (
-    <div className="min-h-screen bg-radial from-slate-900 via-[#0B0F19] to-[#04060b] text-white flex flex-col justify-between select-none px-3 sm:px-6 py-3 font-sans relative overflow-x-hidden">
+    <div className="h-full w-full bg-radial from-slate-900 via-[#0B0F19] to-[#04060b] text-white flex flex-col justify-between select-none px-3 sm:px-5 py-2 font-sans relative overflow-hidden">
       {/* Background visual grid */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.02)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
 
       {/* TOP HEADER BAR */}
-      <header className="w-full max-w-7xl mx-auto bg-slate-900/90 border border-slate-800/90 rounded-2xl p-3 sm:p-4 mb-4 backdrop-blur-md shadow-xl flex flex-col md:flex-row items-center justify-between gap-3 z-10">
+      <header className="w-full max-w-7xl mx-auto bg-slate-900/90 border border-slate-800/90 rounded-2xl px-3.5 py-2 mb-2 backdrop-blur-md shadow-xl flex flex-col md:flex-row items-center justify-between gap-2 z-10 shrink-0">
         {/* Left: Home Button + Level Info & Switchers */}
         <div className="flex items-center gap-2.5 w-full md:w-auto justify-between md:justify-start">
           <button
@@ -831,10 +831,10 @@ export default function TravelMissionScreen({
       </header>
 
       {/* MAIN TWO-COLUMN CONTAINER */}
-      <main className="w-full max-w-7xl mx-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start z-10 mb-2">
+      <main className="w-full max-w-7xl mx-auto flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch z-10">
         {/* LEFT COLUMN (~60% width): 5x5 MATRIX GRID & CONTROLS */}
-        <div className="lg:col-span-7 flex flex-col items-center bg-slate-900/70 border border-slate-800/90 rounded-3xl p-4 sm:p-6 backdrop-blur-md shadow-2xl relative">
-          <div className="w-full flex items-center justify-between mb-2.5 text-xs text-slate-400 flex-wrap gap-2">
+        <div className="lg:col-span-7 flex flex-col items-center justify-between bg-slate-900/70 border border-slate-800/90 rounded-3xl p-3 sm:p-4 backdrop-blur-md shadow-2xl relative min-h-0 overflow-hidden">
+          <div className="w-full flex items-center justify-between mb-1.5 text-xs text-slate-400 flex-wrap gap-2 shrink-0">
             <span className="font-mono text-cyan-400 flex items-center gap-1">
               <Compass size={14} /> แผนที่เมทริกซ์ 5x5 พิกัดเมืองดิจิทัล
             </span>
@@ -844,7 +844,7 @@ export default function TravelMissionScreen({
           </div>
 
           {/* 5x5 Matrix Grid */}
-          <div className="relative p-2.5 sm:p-3.5 bg-slate-950 rounded-2xl border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(6,182,212,0.15)] w-full max-w-[460px] aspect-square flex flex-col justify-between">
+          <div className="relative p-2 sm:p-2.5 bg-slate-950 rounded-2xl border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(6,182,212,0.15)] w-full max-w-[min(420px,calc(100vh-250px))] aspect-square flex flex-col justify-between my-auto">
             {/* 5 rows */}
             {Array.from({ length: 5 }).map((_, rowIdx) => (
               <div key={rowIdx} className="grid grid-cols-5 gap-1.5 sm:gap-2 h-[18%]">
@@ -987,39 +987,39 @@ export default function TravelMissionScreen({
           </AnimatePresence>
 
           {/* Execution Controls under Grid */}
-          <div className="w-full max-w-[460px] flex gap-3 mt-3">
+          <div className="w-full max-w-[420px] flex gap-2.5 mt-2 shrink-0">
             <button
               onClick={handleStartTravel}
               disabled={isRunning}
-              className={`flex-1 py-3.5 px-6 rounded-2xl font-extrabold text-base tracking-wider transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
+              className={`flex-1 py-2.5 px-5 rounded-2xl font-extrabold text-sm sm:text-base tracking-wider transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
                 isRunning
                   ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                   : 'bg-gradient-to-r from-emerald-500 to-green-400 hover:from-emerald-400 hover:to-green-300 text-slate-950 shadow-[0_0_25px_rgba(16,185,129,0.4)] hover:shadow-[0_0_35px_rgba(16,185,129,0.6)] transform hover:scale-[1.02] active:scale-95'
               }`}
               id="start-travel-btn"
             >
-              <Play size={20} fill="currentColor" />
+              <Play size={18} fill="currentColor" />
               <span>เริ่มการเดินทาง</span>
             </button>
 
             <button
               onClick={handleResetSimulation}
-              className="py-3.5 px-5 bg-slate-800/90 hover:bg-slate-700 border border-slate-700 rounded-2xl text-slate-200 font-bold transition-all text-sm sm:text-base flex items-center justify-center gap-1.5 cursor-pointer transform active:scale-95 hover:border-slate-500 shadow-md"
+              className="py-2.5 px-4 bg-slate-800/90 hover:bg-slate-700 border border-slate-700 rounded-2xl text-slate-200 font-bold transition-all text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transform active:scale-95 hover:border-slate-500 shadow-md"
               id="reset-travel-btn"
               title="รีเซ็ตตำแหน่งตัวละครกลับจุดเริ่มต้น"
             >
-              <RotateCcw size={18} />
+              <RotateCcw size={16} />
               <span>เริ่มใหม่</span>
             </button>
           </div>
         </div>
 
         {/* RIGHT COLUMN (~40% width): COMMAND CONSOLE & WORKSPACE QUEUE */}
-        <div className="lg:col-span-5 flex flex-col bg-slate-900/70 border border-slate-800/90 rounded-3xl p-4 sm:p-6 backdrop-blur-md shadow-2xl h-full">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+        <div className="lg:col-span-5 flex flex-col bg-slate-900/70 border border-slate-800/90 rounded-3xl p-3.5 sm:p-4 backdrop-blur-md shadow-2xl h-full min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2.5 shrink-0">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />
-              <h3 className="font-extrabold text-slate-100 text-sm sm:text-base tracking-wide">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+              <h3 className="font-extrabold text-slate-100 text-xs sm:text-sm tracking-wide">
                 คอนโซลควบคุมชุดคำสั่ง (Algorithm Workspace)
               </h3>
             </div>
@@ -1075,23 +1075,23 @@ export default function TravelMissionScreen({
           </AnimatePresence>
 
           {/* 1. Direction Buttons Grid */}
-          <div className="mb-4">
-            <span className="text-xs font-bold text-slate-300 block mb-2 font-mono uppercase tracking-wider">
+          <div className="mb-2.5 shrink-0">
+            <span className="text-[11px] font-bold text-slate-300 block mb-1.5 font-mono uppercase tracking-wider">
               1. ปุ่มควบคุมทิศทาง (Direction Blocks)
             </span>
-            <div className="grid grid-cols-3 gap-2 max-w-[280px] mx-auto">
+            <div className="grid grid-cols-3 gap-1.5 max-w-[250px] mx-auto">
               <div />
               <button
                 onClick={() => addCommand('up')}
                 disabled={isRunning}
-                className={`p-3 rounded-xl font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-sm ${
+                className={`p-2 rounded-xl font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 shadow-sm ${
                   isLoopModeActive
                     ? 'bg-purple-900/60 hover:bg-purple-600 text-purple-100 border-2 border-purple-400 hover:border-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.5)] ring-2 ring-purple-400/30'
                     : 'bg-slate-800 hover:bg-cyan-600 hover:text-white border border-slate-700 hover:border-cyan-400 text-cyan-300'
                 }`}
                 id="cmd-up-btn"
               >
-                <ArrowUp size={20} />
+                <ArrowUp size={18} />
                 <span className="text-[11px] font-semibold">{isLoopModeActive ? `ขึ้นบน (x${loopCount})` : 'ขึ้นบน'}</span>
               </button>
               <div />
@@ -1099,62 +1099,62 @@ export default function TravelMissionScreen({
               <button
                 onClick={() => addCommand('left')}
                 disabled={isRunning}
-                className={`p-3 rounded-xl font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-sm ${
+                className={`p-2 rounded-xl font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 shadow-sm ${
                   isLoopModeActive
                     ? 'bg-purple-900/60 hover:bg-purple-600 text-purple-100 border-2 border-purple-400 hover:border-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.5)] ring-2 ring-purple-400/30'
                     : 'bg-slate-800 hover:bg-cyan-600 hover:text-white border border-slate-700 hover:border-cyan-400 text-cyan-300'
                 }`}
                 id="cmd-left-btn"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={18} />
                 <span className="text-[11px] font-semibold">{isLoopModeActive ? `เลี้ยวซ้าย (x${loopCount})` : 'เลี้ยวซ้าย'}</span>
               </button>
 
               <button
                 onClick={() => addCommand('down')}
                 disabled={isRunning}
-                className={`p-3 rounded-xl font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-sm ${
+                className={`p-2 rounded-xl font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 shadow-sm ${
                   isLoopModeActive
                     ? 'bg-purple-900/60 hover:bg-purple-600 text-purple-100 border-2 border-purple-400 hover:border-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.5)] ring-2 ring-purple-400/30'
                     : 'bg-slate-800 hover:bg-cyan-600 hover:text-white border border-slate-700 hover:border-cyan-400 text-cyan-300'
                 }`}
                 id="cmd-down-btn"
               >
-                <ArrowDown size={20} />
+                <ArrowDown size={18} />
                 <span className="text-[11px] font-semibold">{isLoopModeActive ? `ลงล่าง (x${loopCount})` : 'ลงล่าง'}</span>
               </button>
 
               <button
                 onClick={() => addCommand('right')}
                 disabled={isRunning}
-                className={`p-3 rounded-xl font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-sm ${
+                className={`p-2 rounded-xl font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95 shadow-sm ${
                   isLoopModeActive
                     ? 'bg-purple-900/60 hover:bg-purple-600 text-purple-100 border-2 border-purple-400 hover:border-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.5)] ring-2 ring-purple-400/30'
                     : 'bg-slate-800 hover:bg-cyan-600 hover:text-white border border-slate-700 hover:border-cyan-400 text-cyan-300'
                 }`}
                 id="cmd-right-btn"
               >
-                <ArrowRight size={20} />
+                <ArrowRight size={18} />
                 <span className="text-[11px] font-semibold">{isLoopModeActive ? `เลี้ยวขวา (x${loopCount})` : 'เลี้ยวขวา'}</span>
               </button>
             </div>
           </div>
 
           {/* 2. Action & Loop Controls */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2.5 shrink-0">
             {/* Check-in action button */}
             <button
               onClick={() => addCommand('checkin')}
               disabled={isRunning}
-              className="py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black rounded-xl transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] flex items-center justify-center gap-2 cursor-pointer active:scale-95 text-xs sm:text-sm"
+              className="py-2 px-3 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black rounded-xl transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 text-xs sm:text-sm"
               id="cmd-checkin-btn"
             >
-              <MapPin size={18} />
+              <MapPin size={16} />
               <span>📍 เช็คอิน</span>
             </button>
 
             {/* Loop controller */}
-            <div className="flex items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-xl border border-purple-500/40">
+            <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-purple-500/40">
               <span className="text-[11px] font-mono text-purple-300 px-1">รอบ:</span>
               <input
                 type="number"
@@ -1163,7 +1163,7 @@ export default function TravelMissionScreen({
                 value={loopCount}
                 onChange={(e) => setLoopCount(Math.max(2, Math.min(5, parseInt(e.target.value) || 2)))}
                 disabled={isRunning}
-                className="w-10 py-1 px-1 bg-slate-900 border border-purple-800 rounded-lg text-center font-bold text-sm text-purple-200 outline-none"
+                className="w-9 py-0.5 px-1 bg-slate-900 border border-purple-800 rounded-lg text-center font-bold text-xs text-purple-200 outline-none"
                 id="loop-count-input"
               />
               <button
@@ -1174,7 +1174,7 @@ export default function TravelMissionScreen({
                   setStatusMessage(null);
                 }}
                 disabled={isRunning}
-                className={`flex-1 py-2 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer ${
                   isLoopModeActive
                     ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.6)] animate-pulse'
                     : 'bg-purple-950/80 text-purple-300 hover:bg-purple-900 border border-purple-800'
@@ -1182,15 +1182,15 @@ export default function TravelMissionScreen({
                 id="cmd-loop-btn"
                 title="คลิกแล้วเลือกทิศทางเพื่อทำซ้ำ"
               >
-                <Repeat size={14} />
+                <Repeat size={13} />
                 <span>{isLoopModeActive ? 'เลือกลูกศร...' : '🔁 เพิ่มลูป'}</span>
               </button>
             </div>
           </div>
 
           {/* 3. Workspace Queue */}
-          <div className="flex-1 flex flex-col min-h-[190px] max-h-[260px] bg-slate-950/80 border border-slate-800 rounded-2xl p-3 overflow-hidden">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/80 mb-2">
+          <div className="flex-1 flex flex-col min-h-0 bg-slate-950/80 border border-slate-800 rounded-2xl p-2.5 overflow-hidden">
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80 mb-1.5 shrink-0">
               <span className="text-xs font-mono text-slate-400 font-bold uppercase tracking-wider">
                 ลำดับคำสั่ง (Workspace Queue)
               </span>
@@ -1261,11 +1261,11 @@ export default function TravelMissionScreen({
           </div>
 
           {/* 4. Clear all queue button */}
-          <div className="pt-3">
+          <div className="pt-2 shrink-0">
             <button
               onClick={clearAllCommands}
               disabled={isRunning || commands.length === 0}
-              className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`w-full py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                 commands.length > 0 && !isRunning
                   ? 'bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800 hover:border-rose-600'
                   : 'bg-slate-950 text-slate-700 border border-slate-900 cursor-not-allowed'
@@ -1292,7 +1292,7 @@ export default function TravelMissionScreen({
               initial={{ scale: 0.9, opacity: 0, y: 25 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 25 }}
-              className="bg-slate-900 border-2 border-cyan-400/70 rounded-3xl max-w-2xl w-full p-5 sm:p-8 shadow-[0_0_50px_rgba(6,182,212,0.3)] relative my-auto"
+              className="bg-slate-900 border-2 border-cyan-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(6,182,212,0.3)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
               id="level1-knowledge-modal"
             >
               {/* Top Mission Accomplished Badge */}
@@ -1457,7 +1457,7 @@ export default function TravelMissionScreen({
                 initial={{ scale: 0.92, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.92, opacity: 0, y: 20 }}
-                className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-4xl w-full p-4 sm:p-7 shadow-[0_0_50px_rgba(245,158,11,0.25)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
+                className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-5xl w-full p-4 sm:p-5 shadow-[0_0_50px_rgba(245,158,11,0.25)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
                 id="level1-exercise-modal"
               >
                 {/* Header */}
@@ -1743,7 +1743,7 @@ export default function TravelMissionScreen({
               initial={{ scale: 0.9, opacity: 0, y: 25 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 25 }}
-              className="bg-slate-900 border-2 border-purple-400/70 rounded-3xl max-w-2xl w-full p-5 sm:p-8 shadow-[0_0_50px_rgba(168,85,247,0.3)] relative my-auto"
+              className="bg-slate-900 border-2 border-purple-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(168,85,247,0.3)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
               id="level2-knowledge-modal"
             >
               {/* Top Mission Accomplished Badge */}
@@ -1998,17 +1998,17 @@ export default function TravelMissionScreen({
                 initial={{ scale: 0.92, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.92, opacity: 0, y: 20 }}
-                className="bg-slate-900 border-2 border-purple-400/70 rounded-3xl max-w-4xl w-full p-4 sm:p-6 shadow-[0_0_50px_rgba(168,85,247,0.25)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
+                className="bg-slate-900 border-2 border-purple-400/70 rounded-3xl max-w-6xl w-full p-4 sm:p-5 shadow-[0_0_50px_rgba(168,85,247,0.25)] relative my-auto max-h-[95vh] flex flex-col overflow-hidden"
                 id="level2-exercise-modal"
               >
                 {/* Header */}
-                <div className="flex items-start justify-between gap-3 pb-3.5 border-b border-slate-800 shrink-0 flex-wrap">
+                <div className="flex items-start justify-between gap-3 pb-2.5 border-b border-slate-800 shrink-0 flex-wrap">
                   <div>
-                    <div className="inline-flex items-center gap-1.5 text-xs font-mono text-purple-300 bg-purple-950/70 border border-purple-500/40 px-2.5 py-0.5 rounded-md mb-1.5">
+                    <div className="inline-flex items-center gap-1.5 text-xs font-mono text-purple-300 bg-purple-950/70 border border-purple-500/40 px-2.5 py-0.5 rounded-md mb-1">
                       <Repeat size={13} />
                       <span>แบบฝึกหัดท้ายด่านที่ 2 : การหารูปแบบ (Pattern Recognition)</span>
                     </div>
-                    <h3 className="text-base sm:text-xl font-black text-white leading-snug">
+                    <h3 className="text-base sm:text-lg font-black text-white leading-snug">
                       ลากตัวเลือกไปเติมลงในช่องว่าง [ ] ทั้ง 3 ช่องของแต่ละข้อให้ถูกต้อง
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
@@ -2030,8 +2030,9 @@ export default function TravelMissionScreen({
                   </div>
                 </div>
 
-                {/* Scrollable Questions List */}
-                <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-4">
+                {/* 2x2 Grid Questions List on Desktop */}
+                <div className="flex-1 overflow-y-auto mt-3 pr-1">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {PATTERN_QUESTIONS.map((q, qIdx) => {
                     const userSlots = patternAnswers[q.key];
                     const status = questionStatuses[qIdx];
@@ -2039,7 +2040,7 @@ export default function TravelMissionScreen({
                     return (
                       <div
                         key={q.key}
-                        className={`p-4 rounded-2xl bg-slate-950/90 border transition-colors ${
+                        className={`p-3 rounded-2xl bg-slate-950/90 border transition-colors flex flex-col justify-between ${
                           status.isAllCorrect
                             ? 'border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.12)]'
                             : status.hasAnyWrong
@@ -2251,9 +2252,10 @@ export default function TravelMissionScreen({
                       </div>
                     );
                   })}
+                  </div>
 
                   {level2ExerciseError && (
-                    <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/50 text-xs sm:text-sm text-rose-200 flex items-center gap-2">
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-xs sm:text-sm text-rose-200 flex items-center gap-2">
                       <AlertTriangle size={16} className="text-rose-400 shrink-0" />
                       <span>{level2ExerciseError}</span>
                     </div>
@@ -2261,7 +2263,7 @@ export default function TravelMissionScreen({
                 </div>
 
                 {/* Footer Actions */}
-                <div className="mt-4 pt-3.5 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div className="mt-3 pt-2.5 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -2328,7 +2330,7 @@ export default function TravelMissionScreen({
               initial={{ scale: 0.9, opacity: 0, y: 25 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 25 }}
-              className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-2xl w-full p-5 sm:p-8 shadow-[0_0_50px_rgba(245,158,11,0.3)] relative my-auto"
+              className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(245,158,11,0.3)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
               id="level3-knowledge-modal"
             >
               {/* Top Mission Accomplished Badge */}
@@ -2660,17 +2662,17 @@ export default function TravelMissionScreen({
                 initial={{ scale: 0.92, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.92, opacity: 0, y: 20 }}
-                className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-5xl w-full p-4 sm:p-6 shadow-[0_0_50px_rgba(245,158,11,0.25)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
+                className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-6xl w-full p-4 sm:p-5 shadow-[0_0_50px_rgba(245,158,11,0.25)] relative my-auto max-h-[95vh] flex flex-col overflow-hidden"
                 id="level3-exercise-modal"
               >
                 {/* Header */}
-                <div className="flex items-start justify-between gap-3 pb-3.5 border-b border-slate-800 shrink-0 flex-wrap">
+                <div className="flex items-start justify-between gap-3 pb-2.5 border-b border-slate-800 shrink-0 flex-wrap">
                   <div>
-                    <div className="inline-flex items-center gap-1.5 text-xs font-mono text-amber-300 bg-amber-950/70 border border-amber-500/40 px-2.5 py-0.5 rounded-md mb-1.5">
+                    <div className="inline-flex items-center gap-1.5 text-xs font-mono text-amber-300 bg-amber-950/70 border border-amber-500/40 px-2.5 py-0.5 rounded-md mb-1">
                       <Sparkles size={13} />
                       <span>แบบฝึกหัดท้ายด่านที่ 3 : การคิดเชิงนามธรรม (Abstraction)</span>
                     </div>
-                    <h3 className="text-base sm:text-xl font-black text-white leading-snug">
+                    <h3 className="text-base sm:text-lg font-black text-white leading-snug">
                       คัดเลือกสิ่งของที่สำคัญที่สุดเพียง 5 รายการ โดยการลากใส่กล่อง (นอกนั้นเป็นสิ่งของที่ไม่จำเป็น)
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
@@ -2692,8 +2694,9 @@ export default function TravelMissionScreen({
                   </div>
                 </div>
 
-                {/* Scrollable Body */}
-                <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-5">
+                {/* Two-Column Scenarios on Desktop */}
+                <div className="flex-1 overflow-y-auto mt-3 pr-1">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
                   {ABSTRACTION_SCENARIOS.map((sc, sIdx) => {
                     const userSlots = abstractionAnswers[sc.key];
                     const evalStat = scenarioEvaluations[sIdx];
@@ -2704,7 +2707,7 @@ export default function TravelMissionScreen({
                     return (
                       <div
                         key={sc.key}
-                        className={`p-4 rounded-2xl bg-slate-950/90 border transition-colors ${
+                        className={`p-3.5 rounded-2xl bg-slate-950/90 border transition-colors flex flex-col justify-between ${
                           evalStat.isCompleteAndValid
                             ? 'border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.12)]'
                             : evalStat.hasWrong
@@ -2950,9 +2953,10 @@ export default function TravelMissionScreen({
                       </div>
                     );
                   })}
+                  </div>
 
                   {level3ExerciseError && (
-                    <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/50 text-xs sm:text-sm text-rose-200 flex items-center gap-2">
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-xs sm:text-sm text-rose-200 flex items-center gap-2">
                       <AlertTriangle size={16} className="text-rose-400 shrink-0" />
                       <span>{level3ExerciseError}</span>
                     </div>
@@ -2960,7 +2964,7 @@ export default function TravelMissionScreen({
                 </div>
 
                 {/* Footer Actions */}
-                <div className="mt-4 pt-3.5 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div className="mt-3 pt-2.5 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -3027,23 +3031,23 @@ export default function TravelMissionScreen({
               initial={{ scale: 0.9, opacity: 0, y: 25 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 25 }}
-              className="bg-slate-900 border-2 border-emerald-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-7 shadow-[0_0_50px_rgba(16,185,129,0.3)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
+              className="bg-slate-900 border-2 border-emerald-400/70 rounded-3xl max-w-4xl w-full p-4 sm:p-5 shadow-[0_0_50px_rgba(16,185,129,0.3)] relative my-auto max-h-[95vh] flex flex-col overflow-hidden"
               id="level4-knowledge-modal"
             >
               <div className="flex-1 overflow-y-auto pr-1">
                 {/* Top Mission Accomplished Badge */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-3">
-                  <CheckCircle2 size={15} className="text-emerald-400" />
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-2">
+                  <CheckCircle2 size={14} className="text-emerald-400" />
                   <span>ภารกิจการเดินทางด่านที่ 4 สำเร็จ! · ส่วนความรู้ก่อนทำแบบฝึกหัด</span>
                 </div>
 
                 {/* Knowledge Title */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.5)] shrink-0">
-                    <Compass size={26} />
+                <div className="flex items-center gap-3 mb-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.5)] shrink-0">
+                    <Compass size={22} />
                   </div>
                   <div>
-                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide">
+                    <h3 className="text-lg sm:text-xl font-black text-white tracking-wide">
                       การออกแบบอัลกอริทึม (Algorithm Design)
                     </h3>
                     <span className="text-xs font-mono text-emerald-300">
@@ -3053,8 +3057,8 @@ export default function TravelMissionScreen({
                 </div>
 
                 {/* Definition Box */}
-                <div className="p-4 rounded-2xl bg-slate-950/90 border border-emerald-500/40 mb-4 shadow-inner">
-                  <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-medium">
+                <div className="p-3 rounded-2xl bg-slate-950/90 border border-emerald-500/40 mb-2.5 shadow-inner">
+                  <p className="text-xs sm:text-sm text-slate-100 leading-relaxed font-medium">
                     <strong className="text-emerald-300">อัลกอริทึม</strong> คือ{' '}
                     <strong className="text-cyan-300">
                       ลำดับขั้นตอนที่ชัดเจน เพื่อใช้แก้ปัญหาให้สำเร็จ
@@ -3063,12 +3067,12 @@ export default function TravelMissionScreen({
                 </div>
 
                 {/* 5 Qualities of a Good Algorithm */}
-                <div className="p-4 rounded-2xl bg-slate-950/90 border border-cyan-500/40 mb-4">
-                  <h4 className="text-xs sm:text-sm font-extrabold text-cyan-300 mb-2.5 flex items-center gap-1.5">
-                    <Sparkles size={15} className="text-cyan-400" />
+                <div className="p-3 rounded-2xl bg-slate-950/90 border border-cyan-500/40 mb-2.5">
+                  <h4 className="text-xs sm:text-sm font-extrabold text-cyan-300 mb-2 flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-cyan-400" />
                     <span>อัลกอริทึมที่ดีควรเป็นอย่างไร?</span>
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-1.5">
                     {[
                       { num: 1, text: 'ชัดเจน เข้าใจง่าย' },
                       { num: 2, text: 'มีลำดับขั้นตอน' },
@@ -3078,9 +3082,9 @@ export default function TravelMissionScreen({
                     ].map((item) => (
                       <div
                         key={item.num}
-                        className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex sm:flex-col items-center sm:text-center gap-2"
+                        className="p-2 rounded-xl bg-slate-900 border border-slate-800 flex sm:flex-col items-center sm:text-center gap-1.5"
                       >
-                        <span className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 font-mono font-black text-xs flex items-center justify-center shrink-0">
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 font-mono font-black text-[11px] flex items-center justify-center shrink-0">
                           {item.num}
                         </span>
                         <span className="text-xs font-bold text-slate-100 leading-snug">
@@ -3092,11 +3096,11 @@ export default function TravelMissionScreen({
                 </div>
 
                 {/* Flowchart Symbols Reference Table */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-amber-500/40 mb-4">
-                  <h4 className="text-xs sm:text-sm font-extrabold text-amber-300 mb-3 flex items-center gap-1.5">
+                <div className="p-3 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-amber-500/40 mb-2.5">
+                  <h4 className="text-xs sm:text-sm font-extrabold text-amber-300 mb-2 flex items-center gap-1.5">
                     <span>📐 สัญลักษณ์พื้นฐานของผังงาน (Flowchart) และความหมาย</span>
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {/* 1. Start/Stop (Terminator) */}
                     <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800 flex items-center gap-3">
                       <div className="w-28 h-11 flex items-center justify-center shrink-0">
@@ -3230,7 +3234,7 @@ export default function TravelMissionScreen({
                   setLevel4ExerciseError(null);
                   setLevel4LearningStep('exercise');
                 }}
-                className="mt-2 w-full py-4 px-6 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-slate-950 font-black text-base sm:text-lg tracking-wide rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                className="mt-1.5 w-full py-3 px-6 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-slate-950 font-black text-sm sm:text-base tracking-wide rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer shrink-0"
                 id="enter-algorithm-exercise-btn"
               >
                 <span>เข้าสู่แบบฝึกหัด การออกแบบอัลกอริทึม (Algorithm Design)</span>
@@ -3434,16 +3438,16 @@ export default function TravelMissionScreen({
                 <div
                   {...commonDragProps}
                   title={val ? 'คลิกเพื่อลบออก หรือลากไปสลับช่อง' : 'ลากข้อความมาวางในสัญลักษณ์นี้'}
-                  className={`relative w-56 sm:w-64 h-20 flex items-center justify-center select-none transition-transform ${
+                  className={`relative w-52 sm:w-60 h-14 flex items-center justify-center select-none transition-transform ${
                     isHovered ? 'scale-105' : ''
                   } ${val ? 'cursor-pointer' : ''}`}
                 >
                   <svg
-                    viewBox="0 0 300 96"
+                    viewBox="0 0 300 80"
                     className="w-full h-full overflow-visible drop-shadow-md"
                   >
                     <polygon
-                      points="150,4 294,48 150,92 6,48"
+                      points="150,4 294,40 150,76 6,40"
                       fill={
                         isHovered
                           ? 'rgba(16,185,129,0.35)'
@@ -3489,7 +3493,7 @@ export default function TravelMissionScreen({
                 <div
                   {...commonDragProps}
                   title={val ? 'คลิกเพื่อลบออก' : 'ลากข้อความมาวางในสัญลักษณ์นี้'}
-                  className={`w-44 sm:w-48 min-h-[40px] px-4 py-1.5 rounded-full border-2 flex items-center justify-center gap-1.5 text-center transition-all select-none ${
+                  className={`w-40 sm:w-44 min-h-[34px] px-3 py-1 rounded-full border-2 flex items-center justify-center gap-1.5 text-center transition-all select-none ${
                     isHovered
                       ? 'bg-rose-900/50 border-rose-300 scale-105 shadow-[0_0_15px_rgba(248,113,113,0.4)]'
                       : val !== null
@@ -3501,11 +3505,11 @@ export default function TravelMissionScreen({
                 >
                   {val !== null && (
                     <>
-                      <span className="text-xs sm:text-sm font-black">{val}</span>
+                      <span className="text-xs font-black">{val}</span>
                       {isCorrect ? (
-                        <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+                        <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
                       ) : (
-                        <AlertTriangle size={15} className="text-rose-400 shrink-0" />
+                        <AlertTriangle size={14} className="text-rose-400 shrink-0" />
                       )}
                     </>
                   )}
@@ -3518,7 +3522,7 @@ export default function TravelMissionScreen({
               <div
                 {...commonDragProps}
                 title={val ? 'คลิกเพื่อลบออก' : 'ลากข้อความมาวางในสัญลักษณ์นี้'}
-                className={`w-44 sm:w-48 min-h-[40px] px-3 py-1.5 rounded-md border-2 flex items-center justify-center gap-1.5 text-center transition-all select-none ${
+                className={`w-40 sm:w-44 min-h-[34px] px-3 py-1 rounded-md border-2 flex items-center justify-center gap-1.5 text-center transition-all select-none ${
                   isHovered
                     ? 'bg-orange-900/50 border-orange-300 scale-105 shadow-[0_0_15px_rgba(251,146,60,0.4)]'
                     : val !== null
@@ -3530,11 +3534,11 @@ export default function TravelMissionScreen({
               >
                 {val !== null && (
                   <>
-                    <span className="text-xs sm:text-sm font-black">{val}</span>
+                    <span className="text-xs font-black">{val}</span>
                     {isCorrect ? (
-                      <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+                      <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
                     ) : (
-                      <AlertTriangle size={15} className="text-rose-400 shrink-0" />
+                      <AlertTriangle size={14} className="text-rose-400 shrink-0" />
                     )}
                   </>
                 )}
@@ -3669,65 +3673,65 @@ export default function TravelMissionScreen({
                     </div>
 
                     {/* RIGHT SIDE (7 cols): Flowchart Diagram Canvas (Clean geometric symbols without redundant text) */}
-                    <div className="lg:col-span-7 p-4 sm:p-5 rounded-2xl bg-slate-950/90 border border-slate-800 flex flex-col items-center">
+                    <div className="lg:col-span-7 p-3 sm:p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 flex flex-col items-center">
                       {/* Slot 0: Start (Capsule) */}
                       {renderFlowchartSlotNode(0)}
 
                       {/* Arrow Down */}
-                      <div className="text-cyan-400 font-bold text-base leading-none my-1">↓</div>
+                      <div className="text-cyan-400 font-bold text-xs leading-none my-0.5">↓</div>
 
                       {/* Slot 1: เดินออกจากบ้าน (Process) */}
                       {renderFlowchartSlotNode(1)}
 
                       {/* Arrow Down */}
-                      <div className="text-cyan-400 font-bold text-base leading-none my-1">↓</div>
+                      <div className="text-cyan-400 font-bold text-xs leading-none my-0.5">↓</div>
 
                       {/* Slot 2: ถ้าฉันมีเงิน มากกว่า 20 บาท (Decision Diamond) */}
                       {renderFlowchartSlotNode(2)}
 
                       {/* Left & Right Branching */}
-                      <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5 mt-1.5">
+                      <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3.5 mt-1">
                         {/* Left Branch: นั่งรถเมล์ -> เดินเข้าซอย */}
-                        <div className="flex flex-col items-center p-2.5 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-                          <div className="text-xs font-mono font-bold text-amber-300 mb-1.5">
+                        <div className="flex flex-col items-center p-2 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+                          <div className="text-[11px] font-mono font-bold text-amber-300 mb-1">
                             ← ฝั่งซ้าย
                           </div>
                           {renderFlowchartSlotNode(3)}
-                          <div className="text-cyan-400 font-bold text-base leading-none my-1">↓</div>
+                          <div className="text-cyan-400 font-bold text-xs leading-none my-0.5">↓</div>
                           {renderFlowchartSlotNode(4)}
-                          <div className="text-cyan-400 font-bold text-sm mt-1">↘</div>
+                          <div className="text-cyan-400 font-bold text-xs mt-0.5">↘</div>
                         </div>
 
                         {/* Right Branch: นั่งรถมอเตอร์ไซค์ */}
-                        <div className="flex flex-col items-center justify-between p-2.5 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-                          <div className="text-xs font-mono font-bold text-emerald-300 mb-1.5">
+                        <div className="flex flex-col items-center justify-between p-2 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+                          <div className="text-[11px] font-mono font-bold text-emerald-300 mb-1">
                             → ฝั่งขวา
                           </div>
                           <div className="my-auto flex flex-col items-center">
                             {renderFlowchartSlotNode(5)}
                           </div>
-                          <div className="text-cyan-400 font-bold text-sm mt-1">↙</div>
+                          <div className="text-cyan-400 font-bold text-xs mt-0.5">↙</div>
                         </div>
                       </div>
 
                       {/* Connector Symbol (Circle) where both branches merge */}
-                      <div className="flex items-center gap-3 my-1.5">
-                        <span className="text-cyan-400 font-bold text-sm">→</span>
+                      <div className="flex items-center gap-2.5 my-1">
+                        <span className="text-cyan-400 font-bold text-xs">→</span>
                         <div
-                          className="w-8 h-8 rounded-full bg-purple-500/20 border-2 border-purple-400 flex items-center justify-center shadow-[0_0_12px_rgba(168,85,247,0.35)]"
+                          className="w-6 h-6 rounded-full bg-purple-500/20 border-2 border-purple-400 flex items-center justify-center shadow-[0_0_12px_rgba(168,85,247,0.35)]"
                           title="จุดเชื่อมต่อ (Connector)"
                         />
-                        <span className="text-cyan-400 font-bold text-sm">←</span>
+                        <span className="text-cyan-400 font-bold text-xs">←</span>
                       </div>
 
                       {/* Arrow Down */}
-                      <div className="text-cyan-400 font-bold text-base leading-none my-1">↓</div>
+                      <div className="text-cyan-400 font-bold text-xs leading-none my-0.5">↓</div>
 
                       {/* Slot 6: ถึงโรงเรียน (Process) */}
                       {renderFlowchartSlotNode(6)}
 
                       {/* Arrow Down */}
-                      <div className="text-cyan-400 font-bold text-base leading-none my-1">↓</div>
+                      <div className="text-cyan-400 font-bold text-xs leading-none my-0.5">↓</div>
 
                       {/* Slot 7: สิ้นสุด (Capsule) */}
                       {renderFlowchartSlotNode(7)}
