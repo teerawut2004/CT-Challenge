@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { audioSynth } from '../utils/audio';
 import { GRID_LEVELS, GridLevelConfig, GridLandmark, GridObstacle, LandmarkType, LANDMARK_INFO } from '../data/gridLevels';
+import { LevelDiagnosticStats, GridDiagnosticEventType, calculateTrueSkillScore } from '../App';
 
 export type CommandAction = 'up' | 'down' | 'left' | 'right' | 'checkin';
 
@@ -25,6 +26,11 @@ interface TravelMissionScreenProps {
   travelerGender: 'female' | 'male';
   hearts: number;
   onHeartsChange: (newHearts: number) => void;
+  levelDiagnostics?: Record<number, LevelDiagnosticStats>;
+  onRecordMistake?: (levelId: number, wrongPillarIds?: number[]) => void;
+  onRecordRetry?: (levelId: number) => void;
+  onRecordGridEvent?: (levelId: number, eventType: GridDiagnosticEventType) => void;
+  onRecordGridCompletion?: (levelId: number, blocksCount: number, targetBlocks3Star: number, usedLoop: boolean) => void;
   totalAccumulatedScore: number;
   levelGridScores: Record<number, number>; // levelId -> score
   levelGridBlocksUsed: Record<number, { blocks: number; usedLoop: boolean }>; // for analytics table
@@ -43,6 +49,11 @@ export default function TravelMissionScreen({
   travelerGender,
   hearts,
   onHeartsChange,
+  levelDiagnostics,
+  onRecordMistake,
+  onRecordRetry,
+  onRecordGridEvent,
+  onRecordGridCompletion,
   totalAccumulatedScore,
   levelGridScores,
   levelGridBlocksUsed,
@@ -56,6 +67,9 @@ export default function TravelMissionScreen({
 
   // Character position on 5x5 grid
   const [playerPos, setPlayerPos] = useState<{ x: number; y: number }>(currentConfig.startPos);
+  const [queueStartPos, setQueueStartPos] = useState<{ x: number; y: number }>(currentConfig.startPos);
+  const [queueStartCheckedIds, setQueueStartCheckedIds] = useState<string[]>([]);
+  const [queueStartPoints, setQueueStartPoints] = useState<number>(0);
   const [collidedObstaclePos, setCollidedObstaclePos] = useState<{ x: number; y: number } | null>(null);
   
   // Execution & commands
@@ -73,6 +87,15 @@ export default function TravelMissionScreen({
   // Loop controller input
   const [loopCount, setLoopCount] = useState<number>(2);
   const [isLoopModeActive, setIsLoopModeActive] = useState<boolean>(false);
+  const [travelRunCount, setTravelRunCount] = useState<number>(0);
+  const [firstRunMissedLoop, setFirstRunMissedLoop] = useState<boolean>(false);
+
+  // Progressive Hints (คำใบ้ 3 ระดับ: 1. ชวนคิด -> 2. ชี้จุดที่ผิด -> 3. แสดงตัวอย่างแนวคิด) & Algorithm Comparison states
+  const [gridMistakeStreak, setGridMistakeStreak] = useState<number>(0);
+  const [manualGridHintTier, setManualGridHintTier] = useState<1 | 2 | 3 | null>(null);
+  const [exerciseMistakeStep, setExerciseMistakeStep] = useState<number>(0);
+  const [manualExerciseHintTier, setManualExerciseHintTier] = useState<1 | 2 | 3 | null>(null);
+  const [showAlgorithmComparisonModal, setShowAlgorithmComparisonModal] = useState<boolean>(false);
 
   // Victory modal after reaching targets & Game Over modal when hearts reach 0
   const [showVictoryModal, setShowVictoryModal] = useState<boolean>(false);
@@ -144,6 +167,22 @@ export default function TravelMissionScreen({
   const [level4ExerciseError, setLevel4ExerciseError] = useState<string | null>(null);
   const [level4ExerciseCompleted, setLevel4ExerciseCompleted] = useState<boolean>(false);
 
+  // Level 5 Post-Mission Capstone Assessment (Boss Challenge: โจทย์สถานการณ์บูรณาการ 4 ทักษะ): 'knowledge' -> 'exercise' -> Victory Modal
+  const [level5LearningStep, setLevel5LearningStep] = useState<'knowledge' | 'exercise' | null>(null);
+  const [bossAnswers, setBossAnswers] = useState<{
+    decomposition: string | null;
+    pattern: string | null;
+    abstraction: string | null;
+    algorithm: string | null;
+  }>({
+    decomposition: null,
+    pattern: null,
+    abstraction: null,
+    algorithm: null,
+  });
+  const [level5ExerciseError, setLevel5ExerciseError] = useState<string | null>(null);
+  const [level5ExerciseCompleted, setLevel5ExerciseCompleted] = useState<boolean>(false);
+
   // Refs for tracking execution cancellation
   const isCancelledRef = useRef(false);
 
@@ -193,12 +232,25 @@ export default function TravelMissionScreen({
           setLevel4ExerciseCompleted(true);
         }
       }
+      const savedL5 = sessionStorage.getItem('ct_level5_boss_answers');
+      if (savedL5) {
+        const parsed5 = JSON.parse(savedL5);
+        if (parsed5.bossAnswers) {
+          setBossAnswers(parsed5.bossAnswers);
+        }
+        if (parsed5.completed) {
+          setLevel5ExerciseCompleted(true);
+        }
+      }
     } catch (e) {}
   }, []);
 
   // Reset grid state whenever level changes
   useEffect(() => {
     setPlayerPos(currentConfig.startPos);
+    setQueueStartPos(currentConfig.startPos);
+    setQueueStartCheckedIds([]);
+    setQueueStartPoints(0);
     setCollidedObstaclePos(null);
     setCommands([]);
     setCheckedInIds([]);
@@ -212,11 +264,20 @@ export default function TravelMissionScreen({
     setLevel2LearningStep(null);
     setLevel3LearningStep(null);
     setLevel4LearningStep(null);
+    setLevel5LearningStep(null);
     setExerciseError(null);
     setLevel2ExerciseError(null);
     setLevel3ExerciseError(null);
     setLevel4ExerciseError(null);
+    setLevel5ExerciseError(null);
     setIsLoopModeActive(false);
+    setTravelRunCount(0);
+    setFirstRunMissedLoop(false);
+    setGridMistakeStreak(0);
+    setManualGridHintTier(null);
+    setExerciseMistakeStep(0);
+    setManualExerciseHintTier(null);
+    setShowAlgorithmComparisonModal(false);
     onHeartsChange(3);
     isCancelledRef.current = false;
   }, [currentLevelId]);
@@ -242,8 +303,12 @@ export default function TravelMissionScreen({
 
     audioSynth.playSfx('click');
     setStatusMessage(null);
+    setManualGridHintTier(null);
 
     const repeat = isLoopModeActive && action !== 'checkin' ? Math.max(2, Math.min(5, loopCount)) : 1;
+    if (repeat > 1) {
+      setFirstRunMissedLoop(false);
+    }
     const newBlock: CommandBlock = {
       id: `${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       action,
@@ -262,6 +327,7 @@ export default function TravelMissionScreen({
     if (isRunning) return;
     audioSynth.playSfx('click');
     setStatusMessage(null);
+    setManualGridHintTier(null);
     setCommands(prev => prev.filter(c => c.id !== id));
   };
 
@@ -269,23 +335,85 @@ export default function TravelMissionScreen({
   const clearAllCommands = () => {
     if (isRunning) return;
     audioSynth.playSfx('click');
+    setQueueStartPos(playerPos);
+    setQueueStartCheckedIds(checkedInIds);
+    setQueueStartPoints(currentLevelPoints);
     setCommands([]);
     setStatusMessage(null);
+    setManualGridHintTier(null);
   };
 
   // Reset simulation to start
-  const handleResetSimulation = () => {
+  const handleResetSimulation = (recordAsUserReset: boolean = false) => {
     audioSynth.playSfx('click');
+    if (recordAsUserReset && (travelRunCount > 0 || commands.length > 0)) {
+      onRecordGridEvent?.(currentLevelId, 'grid_reset');
+    }
     isCancelledRef.current = true;
     setIsRunning(false);
     setActiveExecutingCmdId(null);
     setPlayerPos(currentConfig.startPos);
+    setQueueStartPos(currentConfig.startPos);
+    setQueueStartCheckedIds([]);
+    setQueueStartPoints(0);
     setCollidedObstaclePos(null);
     setCheckedInIds([]);
     setCurrentLevelPoints(0);
+    setTravelRunCount(0);
+    setFirstRunMissedLoop(false);
     onHeartsChange(3);
     setShowGameOverModal(false);
     setStatusMessage(null);
+  };
+
+  const ACTION_THAI_NAMES: Record<CommandAction, string> = {
+    up: 'ขึ้นบน',
+    down: 'ลงล่าง',
+    left: 'เลี้ยวซ้าย',
+    right: 'เลี้ยวขวา',
+    checkin: 'เช็คอิน',
+  };
+
+  // Build the loop reminder message (used only when the first travel run did not use a loop)
+  const getFirstRunLoopWarningText = (cmds: CommandBlock[]): string => {
+    const repeatedGroups: { action: CommandAction; startBlock: number; endBlock: number; totalSteps: number }[] = [];
+    let i = 0;
+    while (i < cmds.length) {
+      const current = cmds[i];
+      if (current.action === 'checkin') {
+        i++;
+        continue;
+      }
+      let j = i + 1;
+      let totalSteps = current.repeat;
+      while (j < cmds.length && cmds[j].action === current.action) {
+        totalSteps += cmds[j].repeat;
+        j++;
+      }
+      if (j - i >= 2) {
+        repeatedGroups.push({
+          action: current.action,
+          startBlock: i + 1,
+          endBlock: j,
+          totalSteps,
+        });
+      }
+      i = j;
+    }
+
+    if (repeatedGroups.length === 1) {
+      const g = repeatedGroups[0];
+      return `มีการเดินด้วยคำสั่ง "${ACTION_THAI_NAMES[g.action]}" ซ้ำกัน (บล็อกที่ ${g.startBlock}–${g.endBlock}) แนะนำให้ใช้ 🔄 วนลูป เพื่อทำคำสั่งซ้ำหลายครั้ง ช่วยให้ใช้บล็อกคำสั่งน้อยลง`;
+    }
+
+    if (repeatedGroups.length > 1) {
+      const groupDetails = repeatedGroups
+        .map(g => `"${ACTION_THAI_NAMES[g.action]}" (บล็อกที่ ${g.startBlock}–${g.endBlock})`)
+        .join(', ');
+      return `มีการเดินด้วยคำสั่งซ้ำกัน ได้แก่ ${groupDetails} แนะนำให้ใช้ 🔄 วนลูป เพื่อทำคำสั่งซ้ำหลายครั้ง ช่วยให้ใช้บล็อกคำสั่งน้อยลง`;
+    }
+
+    return 'การเดินทางในรอบแรกยังไม่ได้มีการใช้ลูป แนะนำให้ใช้ 🔄 วนลูป เพื่อทำคำสั่งซ้ำหลายครั้ง ช่วยให้ใช้บล็อกคำสั่งน้อยลง';
   };
 
   // Run execution
@@ -296,17 +424,27 @@ export default function TravelMissionScreen({
       return;
     }
 
-    // Start running from the player's current position on the grid
+    const currentRun = travelRunCount + 1;
+    setTravelRunCount(currentRun);
+    const usedLoopInThisRun = commands.some(c => c.repeat > 1);
+    const isFirstRunWithoutLoop = currentRun === 1 && !usedLoopInThisRun;
+    setFirstRunMissedLoop(isFirstRunWithoutLoop);
+
+    // Start running from the queue's starting position on the grid
     isCancelledRef.current = false;
     setCollidedObstaclePos(null);
     setIsRunning(true);
     setStatusMessage(null);
+    setManualGridHintTier(null);
     audioSynth.playSfx('click');
 
-    let curX = playerPos.x;
-    let curY = playerPos.y;
-    let currentChecked: string[] = [...checkedInIds];
-    let earnedPts = currentLevelPoints;
+    let curX = queueStartPos.x;
+    let curY = queueStartPos.y;
+    let currentChecked: string[] = [...queueStartCheckedIds];
+    let earnedPts = queueStartPoints;
+    setPlayerPos({ x: curX, y: curY });
+    setCheckedInIds([...currentChecked]);
+    setCurrentLevelPoints(earnedPts);
     let hasFailed = false;
 
     // Expand commands into step-by-step actions
@@ -340,6 +478,7 @@ export default function TravelMissionScreen({
               audioSynth.playSfx('correct');
             } else {
               audioSynth.playSfx('wrong');
+              onRecordGridEvent?.(currentLevelId, 'target_error');
               setStatusMessage({ 
                 text: `เช็คอินซ้ำ! "${landmark.name}" ได้รับการเช็คอินไปแล้ว`, 
                 type: 'warning' 
@@ -347,6 +486,7 @@ export default function TravelMissionScreen({
             }
           } else {
             audioSynth.playSfx('wrong');
+            onRecordGridEvent?.(currentLevelId, 'target_error');
             setStatusMessage({ 
               text: `คำสั่งเช็คอินผิดพลาด! ที่พิกัด (${curX},${curY}) ไม่มีสถานที่ท่องเที่ยวให้เช็คอิน`, 
               type: 'warning' 
@@ -361,6 +501,7 @@ export default function TravelMissionScreen({
           curX = prevX;
           curY = prevY;
           audioSynth.playSfx('wrong');
+          onRecordGridEvent?.(currentLevelId, 'obstacle_hit');
           setStatusMessage({ 
             text: `เดินหลุดออกนอกขอบเขตแผนที่ 5x5 จากพิกัด (${prevX},${prevY})! กรุณาปรับแก้ทิศทางคำสั่ง`, 
             type: 'error' 
@@ -373,6 +514,7 @@ export default function TravelMissionScreen({
         if (obstacle) {
           hasFailed = true;
           audioSynth.playSfx('wrong');
+          onRecordGridEvent?.(currentLevelId, 'obstacle_hit');
           setCollidedObstaclePos({ x: curX, y: curY });
           const obsName = obstacle.type === 'rock' ? 'หิน 🪨' : obstacle.type === 'tree' ? 'ต้นไม้ 🌲' : 'บ่อน้ำ 💧';
           // Keep player at the valid cell right before the obstacle
@@ -411,6 +553,7 @@ export default function TravelMissionScreen({
     if (isCancelledRef.current) return;
 
     if (hasFailed) {
+      setGridMistakeStreak(prev => prev + 1);
       return;
     }
 
@@ -427,27 +570,61 @@ export default function TravelMissionScreen({
       return checkedByType[type] >= required;
     });
 
+    const loopWarning = isFirstRunWithoutLoop ? getFirstRunLoopWarningText(commands) : null;
+
     if (isAllChecked) {
+      if (loopWarning) {
+        audioSynth.playSfx('wrong');
+        onRecordGridEvent?.(currentLevelId, 'loop_missed');
+        setGridMistakeStreak(prev => prev + 1);
+        setStatusMessage({
+          text: loopWarning,
+          type: 'warning',
+        });
+        return;
+      }
       audioSynth.playSfx('unlock');
       setStatusMessage(null);
+      onRecordGridCompletion?.(
+        currentLevelId,
+        commands.length,
+        currentConfig.targetBlocks3Star,
+        usedLoopInThisRun
+      );
       onHeartsChange(3);
-      if (currentLevelId === 1) {
-        setLevel1LearningStep('knowledge');
-      } else if (currentLevelId === 2) {
-        setLevel2LearningStep('knowledge');
-      } else if (currentLevelId === 3) {
-        setLevel3LearningStep('knowledge');
-      } else if (currentLevelId === 4) {
-        setLevel4LearningStep('knowledge');
-      } else {
-        setShowVictoryModal(true);
-      }
+      // Open Algorithm Comparison & Metacognitive Reflection modal first upon completing 5x5 grid
+      setShowAlgorithmComparisonModal(true);
     } else {
       audioSynth.playSfx('wrong');
+      onRecordGridEvent?.(currentLevelId, 'target_error');
+      if (loopWarning) {
+        onRecordGridEvent?.(currentLevelId, 'loop_missed');
+      }
+      setGridMistakeStreak(prev => prev + 1);
+      const baseMsg = `สิ้นสุดคำสั่งที่พิกัด (${curX},${curY}) แต่ยังเช็คอินหรือเก็บเพชรไม่ครบตามเป้าหมายของด่าน!`;
       setStatusMessage({ 
-        text: `สิ้นสุดคำสั่งที่พิกัด (${curX},${curY}) แต่ยังเช็คอินหรือเก็บเพชรไม่ครบตามเป้าหมายของด่าน!`, 
+        text: loopWarning ? `${baseMsg} • ${loopWarning}` : baseMsg, 
         type: 'warning' 
       });
+    }
+  };
+
+  // Proceed from Algorithm Comparison modal to the level's Knowledge/Exercise or Capstone Boss Challenge or Victory Modal
+  const handleProceedAfterAlgorithmComparison = () => {
+    audioSynth.playSfx('click');
+    setShowAlgorithmComparisonModal(false);
+    if (currentLevelId === 1 && !exerciseCompleted) {
+      setLevel1LearningStep('knowledge');
+    } else if (currentLevelId === 2 && !level2ExerciseCompleted) {
+      setLevel2LearningStep('knowledge');
+    } else if (currentLevelId === 3 && !level3ExerciseCompleted) {
+      setLevel3LearningStep('knowledge');
+    } else if (currentLevelId === 4 && !level4ExerciseCompleted) {
+      setLevel4LearningStep('knowledge');
+    } else if (currentLevelId === 5 && !level5ExerciseCompleted) {
+      setLevel5LearningStep('exercise');
+    } else {
+      setShowVictoryModal(true);
     }
   };
 
@@ -461,22 +638,106 @@ export default function TravelMissionScreen({
   const usedLoopInCommands = commands.some(c => c.repeat > 1);
   const totalBlocksUsed = commands.length;
 
-  // Real-time error/mistake evaluation (returns null unless the player makes a mistake)
-  const computeRealtimeMistakeAlert = (): { title: string; text: string; type: 'warning' | 'error' } | null => {
-    // 1. If an execution or action error/warning occurred, show it
+  // Flatten shortest / optimal commands from subMissions for Algorithm Comparison
+  const optimalCommands = currentConfig.interactiveHint.subMissions.flatMap(sub =>
+    sub.commands.map(cmd => ({
+      action: cmd.action,
+      repeat: cmd.repeat,
+      subTitle: sub.title,
+    }))
+  );
+  const optimalBlocksCount = optimalCommands.length;
+
+  // Build 3-level Progressive Hint (1. ชวนคิด -> 2. ชี้จุดที่ผิด -> 3. แสดงตัวอย่างแนวคิด) for 5x5 Grid
+  const buildProgressiveGridAlert = (
+    category: 'obstacle' | 'bounds' | 'checkin' | 'incomplete' | 'loop',
+    pinpointText: string,
+    alertType: 'warning' | 'error'
+  ): {
+    title: string;
+    text: string;
+    type: 'warning' | 'error';
+    activeTier: 1 | 2 | 3;
+    autoTier: 1 | 2 | 3;
+  } => {
+    const effectiveMistakeNum = Math.max(1, gridMistakeStreak);
+    const autoTier: 1 | 2 | 3 = effectiveMistakeNum >= 3 ? 3 : effectiveMistakeNum === 2 ? 2 : 1;
+    const activeTier: 1 | 2 | 3 = manualGridHintTier ?? autoTier;
+
+    let hint1 = '';
+    if (category === 'obstacle' || category === 'bounds') {
+      hint1 = `ชวนคิด: ลองสังเกตพิกัดรอบตัวละครบนตาราง 5x5 ว่ามีสิ่งกีดขวาง (🌲 ต้นไม้, 🪨 หิน, 💧 บ่อน้ำ) หรือขอบตารางขวางทิศทางที่จะเดินไปหรือไม่? (${currentConfig.interactiveHint.abstractionTip})`;
+    } else if (category === 'loop') {
+      hint1 = `ชวนคิด: ในชุดคำสั่งมีการก้าวเดินทิศทางเดิมซ้ำติดต่อกันหลายครั้ง ลองคิดดูว่าเราจะใช้ปุ่ม 🔄 วนลูป เพื่อยุบรวมคำสั่งซ้ำให้สั้นลงได้อย่างไร?`;
+    } else {
+      hint1 = `ชวนคิด: ลองตรวจสอบแถบภารกิจเป้าหมายด้านบนว่าต้องไปที่พิกัดใดบ้าง และต้องกด 📍 เช็คอินที่จุดใด (เพชร 💎 เก็บอัตโนมัติเมื่อเดินผ่าน ส่วนสถานที่ท่องเที่ยวต้องกดเช็คอิน)`;
+    }
+
+    const hint2 = `ชี้จุดที่ผิด: ${pinpointText}`;
+
+    const firstSub = currentConfig.interactiveHint.subMissions[0];
+    const patEx = currentConfig.interactiveHint.patternExample;
+    const hint3 = `${pinpointText} • ตัวอย่างแนวคิด: ${currentConfig.interactiveHint.decompositionSummary}${
+      firstSub ? ` | ตัวอย่างช่วงแรก: ${firstSub.suggestedBlocksText}` : ''
+    }${patEx ? ` | ตัวอย่างลูป: ${patEx.compressed}` : ''}`;
+
+    const titleByTier: Record<1 | 2 | 3, string> = {
+      1: 'คำใบ้ระดับที่ 1/3 : ชวนคิด 💡',
+      2: 'คำใบ้ระดับที่ 2/3 : ชี้จุดที่ผิด 🔍',
+      3: 'คำใบ้ระดับที่ 3/3 : ตัวอย่างแนวคิด ✨',
+    };
+
+    const textByTier: Record<1 | 2 | 3, string> = {
+      1: hint1,
+      2: hint2,
+      3: hint3,
+    };
+
+    return {
+      title: titleByTier[activeTier],
+      text: textByTier[activeTier],
+      type: alertType,
+      activeTier,
+      autoTier,
+    };
+  };
+
+  // Real-time error/mistake evaluation with 3-level Progressive Hints
+  const computeRealtimeMistakeAlert = (): {
+    title: string;
+    text: string;
+    type: 'warning' | 'error';
+    activeTier: 1 | 2 | 3;
+    autoTier: 1 | 2 | 3;
+  } | null => {
+    const loopWarning =
+      firstRunMissedLoop && !usedLoopInCommands && commands.length > 0
+        ? getFirstRunLoopWarningText(commands)
+        : null;
+    const appendLoopWarning = (msg: string) =>
+      loopWarning && !msg.includes('วนลูป') ? `${msg} • ${loopWarning}` : msg;
+
+    // 1. If an execution or action error/warning occurred, show it with progressive hint tier
     if (statusMessage && (statusMessage.type === 'error' || statusMessage.type === 'warning')) {
-      return {
-        title: statusMessage.type === 'error' ? '🚨 แจ้งเตือนข้อผิดพลาด!' : '⚠️ แจ้งเตือนคำสั่งไม่ถูกต้อง',
-        text: statusMessage.text,
-        type: statusMessage.type,
-      };
+      const rawText = appendLoopWarning(statusMessage.text);
+      const cat: 'obstacle' | 'bounds' | 'checkin' | 'incomplete' | 'loop' =
+        rawText.includes('ชนสิ่งกีดขวาง')
+          ? 'obstacle'
+          : rawText.includes('นอกขอบเขต')
+          ? 'bounds'
+          : rawText.includes('ไม่ครบตามเป้าหมาย')
+          ? 'incomplete'
+          : rawText.includes('วนลูป') && !rawText.includes('เช็คอิน')
+          ? 'loop'
+          : 'checkin';
+      return buildProgressiveGridAlert(cat, rawText, statusMessage.type);
     }
 
     // 2. While building blocks (not running), check if any block in the queue causes a mistake
     if (!isRunning && commands.length > 0) {
-      let simX = playerPos.x;
-      let simY = playerPos.y;
-      const simChecked = new Set<string>(checkedInIds);
+      let simX = queueStartPos.x;
+      let simY = queueStartPos.y;
+      const simChecked = new Set<string>(queueStartCheckedIds);
 
       for (let i = 0; i < commands.length; i++) {
         const cmd = commands[i];
@@ -493,41 +754,53 @@ export default function TravelMissionScreen({
           else if (cmd.action === 'checkin') {
             const lm = currentConfig.landmarks.find(l => l.x === simX && l.y === simY && l.type !== 'diamond');
             if (!lm) {
-              return {
-                title: `⚠️ แจ้งเตือนทำผิดพลาด (บล็อกที่ ${blockNo})`,
-                text: `คำสั่งเช็คอินไม่ถูกต้อง เพราะที่พิกัด (${simX},${simY}) ไม่มีสถานที่ท่องเที่ยวให้เช็คอิน`,
-                type: 'warning',
-              };
+              return buildProgressiveGridAlert(
+                'checkin',
+                appendLoopWarning(
+                  `บล็อกที่ ${blockNo}: คำสั่งเช็คอินไม่ถูกต้อง เพราะที่พิกัด (${simX},${simY}) ไม่มีสถานที่ท่องเที่ยวให้เช็คอิน`
+                ),
+                'warning'
+              );
             }
             if (simChecked.has(lm.id)) {
-              return {
-                title: `⚠️ แจ้งเตือนทำผิดพลาด (บล็อกที่ ${blockNo})`,
-                text: `"${lm.name}" ที่พิกัด (${simX},${simY}) ได้รับการเช็คอินไปแล้ว ไม่ต้องเช็คอินซ้ำ`,
-                type: 'warning',
-              };
+              return buildProgressiveGridAlert(
+                'checkin',
+                appendLoopWarning(
+                  `บล็อกที่ ${blockNo}: "${lm.name}" ที่พิกัด (${simX},${simY}) ได้รับการเช็คอินไปแล้ว ไม่ต้องเช็คอินซ้ำ`
+                ),
+                'warning'
+              );
             }
             simChecked.add(lm.id);
             continue;
           }
 
           if (simX < 0 || simX > 4 || simY < 0 || simY > 4) {
-            return {
-              title: `🚨 แจ้งเตือนทำผิดพลาด (บล็อกที่ ${blockNo})`,
-              text: `คำสั่งนี้จะทำให้เดินหลุดออกนอกขอบแผนที่ 5x5 จากพิกัด (${prevX},${prevY}) กรุณาลบหรือเปลี่ยนทิศทาง`,
-              type: 'error',
-            };
+            return buildProgressiveGridAlert(
+              'bounds',
+              appendLoopWarning(
+                `บล็อกที่ ${blockNo}: คำสั่งนี้จะทำให้เดินหลุดออกนอกขอบแผนที่ 5x5 จากพิกัด (${prevX},${prevY}) กรุณาลบหรือเปลี่ยนทิศทาง`
+              ),
+              'error'
+            );
           }
 
           const obs = currentConfig.obstacles.find(o => o.x === simX && o.y === simY);
           if (obs) {
             const obsName = obs.type === 'rock' ? 'หิน 🪨' : obs.type === 'tree' ? 'ต้นไม้ 🌲' : 'บ่อน้ำ 💧';
-            return {
-              title: `🚨 แจ้งเตือนชนสิ่งกีดขวาง (บล็อกที่ ${blockNo})`,
-              text: `คำสั่งนี้จะพาเดินไปชน ${obsName} ที่พิกัด (${simX},${simY}) กรุณาลบหรือเปลี่ยนทิศทางหลบหลีก`,
-              type: 'error',
-            };
+            return buildProgressiveGridAlert(
+              'obstacle',
+              appendLoopWarning(
+                `บล็อกที่ ${blockNo}: คำสั่งนี้จะพาเดินไปชน ${obsName} ที่พิกัด (${simX},${simY}) กรุณาลบหรือเปลี่ยนทิศทางหลบหลีก`
+              ),
+              'error'
+            );
           }
         }
+      }
+
+      if (loopWarning) {
+        return buildProgressiveGridAlert('loop', loopWarning, 'warning');
       }
     }
 
@@ -536,8 +809,11 @@ export default function TravelMissionScreen({
 
   const realtimeAlert = computeRealtimeMistakeAlert();
 
-  // Deduct 1 heart when making a mistake inside an exercise; trigger Game Over if hearts reach 0
-  const deductExerciseHeart = (): number => {
+  // Deduct 1 heart when making a mistake inside an exercise; also record cumulative mistake & advance 3-level progressive hint
+  const deductExerciseHeart = (wrongPillarIds?: number[]): number => {
+    onRecordMistake?.(currentLevelId, wrongPillarIds);
+    setExerciseMistakeStep(prev => prev + 1);
+    setManualExerciseHintTier(null);
     const nextHearts = Math.max(0, hearts - 1);
     onHeartsChange(nextHearts);
     if (nextHearts <= 0) {
@@ -546,6 +822,80 @@ export default function TravelMissionScreen({
       }, 300);
     }
     return nextHearts;
+  };
+
+  // Reusable 3-Level Progressive Hint Box for Post-Level Exercises (1. ชวนคิด -> 2. ชี้จุดที่ผิด -> 3. แสดงตัวอย่างแนวคิด)
+  const renderProgressiveExerciseHintBox = (
+    hint1Text: string,
+    hint2Text: string,
+    hint3Text: string,
+    errorSummaryText: string | null
+  ) => {
+    if (!errorSummaryText && exerciseMistakeStep === 0) return null;
+    const stepCount = Math.max(1, exerciseMistakeStep);
+    const autoTier: 1 | 2 | 3 = stepCount >= 3 ? 3 : stepCount === 2 ? 2 : 1;
+    const activeTier: 1 | 2 | 3 = manualExerciseHintTier ?? autoTier;
+
+    const hintContent =
+      activeTier === 1 ? hint1Text : activeTier === 2 ? hint2Text : hint3Text;
+
+    return (
+      <div
+        className="mt-2.5 p-3 rounded-2xl bg-slate-950/90 border-2 border-amber-500/60 shadow-[0_0_20px_rgba(245,158,11,0.18)] space-y-2"
+        id="exercise-progressive-hint-box"
+      >
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-1.5">
+            <Sparkles size={15} className="text-amber-400 shrink-0" />
+            <span className="text-xs font-black text-amber-300">
+              ระบบคำใบ้ตามลำดับขั้น (ทำผิดครั้งที่ {stepCount})
+            </span>
+          </div>
+
+          {/* 3-Step Progressive Pills */}
+          <div className="flex items-center gap-1 text-[10px] font-mono">
+            {([
+              { tier: 1 as const, label: '1. ชวนคิด 💡' },
+              { tier: 2 as const, label: '2. ชี้จุดผิด 🔍' },
+              { tier: 3 as const, label: '3. ตัวอย่างแนวคิด ✨' },
+            ]).map((item) => {
+              const isCurrent = activeTier === item.tier;
+              const isUnlocked = autoTier >= item.tier;
+              return (
+                <button
+                  key={item.tier}
+                  type="button"
+                  onClick={() => {
+                    audioSynth.playSfx('click');
+                    setManualExerciseHintTier(item.tier);
+                  }}
+                  className={`px-2 py-0.5 rounded-md border font-bold transition-all cursor-pointer ${
+                    isCurrent
+                      ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm'
+                      : isUnlocked
+                      ? 'bg-amber-950/70 text-amber-200 border-amber-500/50 hover:bg-amber-900/70'
+                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-amber-300'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <p className="text-xs sm:text-sm text-amber-100 leading-relaxed font-medium bg-amber-950/40 border border-amber-500/30 rounded-xl px-3 py-2">
+          {hintContent}
+        </p>
+
+        {errorSummaryText && (
+          <div className="text-[11px] text-rose-300 flex items-center gap-1.5 pt-0.5">
+            <AlertTriangle size={13} className="text-rose-400 shrink-0" />
+            <span>{errorSummaryText}</span>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Reset exercise state for the current level (used when hearts reach 0 or replaying level)
@@ -590,6 +940,19 @@ export default function TravelMissionScreen({
       setLevel4LearningStep(null);
       try {
         sessionStorage.removeItem('ct_level4_algorithm_answers');
+      } catch (e) {}
+    } else if (currentLevelId === 5) {
+      setBossAnswers({
+        decomposition: null,
+        pattern: null,
+        abstraction: null,
+        algorithm: null,
+      });
+      setLevel5ExerciseCompleted(false);
+      setLevel5ExerciseError(null);
+      setLevel5LearningStep(null);
+      try {
+        sessionStorage.removeItem('ct_level5_boss_answers');
       } catch (e) {}
     }
   };
@@ -831,10 +1194,10 @@ export default function TravelMissionScreen({
       </header>
 
       {/* MAIN TWO-COLUMN CONTAINER */}
-      <main className="w-full max-w-7xl mx-auto flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch z-10">
+      <main className="w-full max-w-7xl mx-auto flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 gap-3.5 items-stretch z-10 overflow-hidden">
         {/* LEFT COLUMN (~60% width): 5x5 MATRIX GRID & CONTROLS */}
-        <div className="lg:col-span-7 flex flex-col items-center justify-between bg-slate-900/70 border border-slate-800/90 rounded-3xl p-3 sm:p-4 backdrop-blur-md shadow-2xl relative min-h-0 overflow-hidden">
-          <div className="w-full flex items-center justify-between mb-1.5 text-xs text-slate-400 flex-wrap gap-2 shrink-0">
+        <div className="md:col-span-7 flex flex-col items-center justify-between bg-slate-900/70 border border-slate-800/90 rounded-3xl p-3 sm:p-3.5 backdrop-blur-md shadow-2xl relative h-full min-h-0 overflow-hidden">
+          <div className="w-full flex items-center justify-between mb-1 text-xs text-slate-400 flex-wrap gap-2 shrink-0">
             <span className="font-mono text-cyan-400 flex items-center gap-1">
               <Compass size={14} /> แผนที่เมทริกซ์ 5x5 พิกัดเมืองดิจิทัล
             </span>
@@ -843,155 +1206,107 @@ export default function TravelMissionScreen({
             </span>
           </div>
 
-          {/* 5x5 Matrix Grid */}
-          <div className="relative p-2 sm:p-2.5 bg-slate-950 rounded-2xl border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(6,182,212,0.15)] w-full max-w-[min(420px,calc(100vh-250px))] aspect-square flex flex-col justify-between my-auto">
-            {/* 5 rows */}
-            {Array.from({ length: 5 }).map((_, rowIdx) => (
-              <div key={rowIdx} className="grid grid-cols-5 gap-1.5 sm:gap-2 h-[18%]">
-                {Array.from({ length: 5 }).map((_, colIdx) => {
-                  const isPlayerHere = playerPos.x === colIdx && playerPos.y === rowIdx;
-                  const isStartPos = currentConfig.startPos.x === colIdx && currentConfig.startPos.y === rowIdx;
-                  const obstacle = currentConfig.obstacles.find(o => o.x === colIdx && o.y === rowIdx);
-                  const isCollidedObstacle = collidedObstaclePos?.x === colIdx && collidedObstaclePos?.y === rowIdx;
-                  const landmark = currentConfig.landmarks.find(l => l.x === colIdx && l.y === rowIdx);
-                  const isCheckedIn = landmark && checkedInIds.includes(landmark.id);
+          {/* 5x5 Matrix Grid Wrapper (Keeps fixed original size; notification is placed in the empty space beside the grid) */}
+          <div className="w-full flex-1 min-h-0 relative flex items-center justify-center py-1 overflow-hidden [container-type:size]">
+            <div className="relative p-2 sm:p-2.5 bg-slate-950 rounded-2xl border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(6,182,212,0.15)] aspect-square flex flex-col justify-between w-[min(420px,98cqw,98cqh)] h-[min(420px,98cqw,98cqh)] max-w-full max-h-full">
+              {/* 5 rows */}
+              {Array.from({ length: 5 }).map((_, rowIdx) => (
+                <div key={rowIdx} className="grid grid-cols-5 gap-1.5 sm:gap-2 h-[18%]">
+                  {Array.from({ length: 5 }).map((_, colIdx) => {
+                    const isPlayerHere = playerPos.x === colIdx && playerPos.y === rowIdx;
+                    const isStartPos = currentConfig.startPos.x === colIdx && currentConfig.startPos.y === rowIdx;
+                    const obstacle = currentConfig.obstacles.find(o => o.x === colIdx && o.y === rowIdx);
+                    const isCollidedObstacle = collidedObstaclePos?.x === colIdx && collidedObstaclePos?.y === rowIdx;
+                    const landmark = currentConfig.landmarks.find(l => l.x === colIdx && l.y === rowIdx);
+                    const isCheckedIn = landmark && checkedInIds.includes(landmark.id);
 
-                  return (
-                    <div
-                      key={colIdx}
-                      className={`relative rounded-xl flex items-center justify-center transition-all duration-200 border text-center ${
-                        isPlayerHere
-                          ? 'bg-cyan-950/70 border-cyan-400 ring-2 ring-cyan-400/80 shadow-[0_0_18px_rgba(6,182,212,0.5)] z-20 scale-105'
-                          : isCollidedObstacle
-                          ? 'bg-rose-950/90 border-rose-500 ring-2 ring-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.7)] animate-pulse z-10'
-                          : obstacle
-                          ? obstacle.type === 'rock'
-                            ? 'bg-stone-900/80 border-stone-700/80'
-                            : obstacle.type === 'tree'
-                            ? 'bg-emerald-950/50 border-emerald-800/60'
-                            : 'bg-blue-950/70 border-blue-800/80'
-                          : landmark
-                          ? isCheckedIn
-                            ? 'bg-amber-950/60 border-amber-400/80 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
-                            : 'bg-slate-900/90 border-slate-700 hover:border-amber-500/50'
-                          : isStartPos
-                          ? 'bg-slate-900/70 border-dashed border-cyan-500/60'
-                          : 'bg-slate-900/40 border-slate-800/80 hover:bg-slate-900/60'
-                      }`}
-                    >
-                      {/* Grid Coordinates watermark */}
-                      <span className="absolute top-1 left-1 text-[8px] sm:text-[9px] font-mono text-slate-600 pointer-events-none">
-                        {colIdx},{rowIdx}
-                      </span>
-
-                      {/* Start flag */}
-                      {isStartPos && !isPlayerHere && (
-                        <span className="absolute bottom-1 right-1 text-[8px] font-mono text-cyan-400 bg-cyan-950/80 px-1 rounded">
-                          START
+                    return (
+                      <div
+                        key={colIdx}
+                        className={`relative rounded-xl flex items-center justify-center transition-all duration-200 border text-center overflow-hidden ${
+                          isPlayerHere
+                            ? 'bg-cyan-950/70 border-cyan-400 ring-2 ring-cyan-400/80 shadow-[0_0_18px_rgba(6,182,212,0.5)] z-20 scale-105'
+                            : isCollidedObstacle
+                            ? 'bg-rose-950/90 border-rose-500 ring-2 ring-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.7)] animate-pulse z-10'
+                            : obstacle
+                            ? obstacle.type === 'rock'
+                              ? 'bg-stone-900/80 border-stone-700/80'
+                              : obstacle.type === 'tree'
+                              ? 'bg-emerald-950/50 border-emerald-800/60'
+                              : 'bg-blue-950/70 border-blue-800/80'
+                            : landmark
+                            ? isCheckedIn
+                              ? 'bg-amber-950/60 border-amber-400/80 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                              : 'bg-slate-900/90 border-slate-700 hover:border-amber-500/50'
+                            : isStartPos
+                            ? 'bg-slate-900/70 border-dashed border-cyan-500/60'
+                            : 'bg-slate-900/40 border-slate-800/80 hover:bg-slate-900/60'
+                        }`}
+                      >
+                        {/* Grid Coordinates watermark */}
+                        <span className="absolute top-0.5 left-1 text-[8px] font-mono text-slate-600 pointer-events-none leading-none">
+                          {colIdx},{rowIdx}
                         </span>
-                      )}
 
-                      {/* Obstacle Icon */}
-                      {obstacle && (
-                        <div className="flex flex-col items-center justify-center">
-                          <span className="text-xl sm:text-2xl filter drop-shadow-md animate-pulse">
-                            {obstacle.type === 'rock' ? '🪨' : obstacle.type === 'tree' ? '🌲' : '💧'}
+                        {/* Start flag */}
+                        {isStartPos && !isPlayerHere && (
+                          <span className="absolute bottom-0.5 right-0.5 text-[7px] sm:text-[8px] font-mono text-cyan-400 bg-cyan-950/80 px-1 rounded leading-tight">
+                            START
                           </span>
-                        </div>
-                      )}
+                        )}
 
-                      {/* Landmark Icon */}
-                      {landmark && (
-                        <div className="flex flex-col items-center justify-center relative">
-                          <span className="text-xl sm:text-2xl filter drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]">
-                            {LANDMARK_INFO[landmark.type].icon}
-                          </span>
-                          {isCheckedIn && (
-                            <div className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 rounded-full p-0.5 shadow-md">
-                              <CheckCircle2 size={12} className="stroke-[3]" />
-                            </div>
-                          )}
-                          <span className="text-[8px] font-mono text-amber-300 font-bold bg-slate-950/80 px-1 rounded mt-0.5 leading-none">
-                            +{landmark.points}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Player Avatar */}
-                      {isPlayerHere && (
-                        <motion.div
-                          layoutId="player-avatar"
-                          transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                          className="flex flex-col items-center justify-center z-30"
-                        >
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-cyan-500 to-teal-300 flex items-center justify-center text-lg sm:text-xl shadow-[0_0_15px_rgba(6,182,212,0.8)] border border-white">
-                            {travelerGender === 'female' ? '👧' : '👦'}
+                        {/* Obstacle Icon */}
+                        {obstacle && (
+                          <div className="flex flex-col items-center justify-center">
+                            <span className="text-lg sm:text-xl filter drop-shadow-md animate-pulse leading-none">
+                              {obstacle.type === 'rock' ? '🪨' : obstacle.type === 'tree' ? '🌲' : '💧'}
+                            </span>
                           </div>
-                        </motion.div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                        )}
+
+                        {/* Landmark Icon */}
+                        {landmark && (
+                          <div className="flex flex-col items-center justify-center relative">
+                            <span className="text-lg sm:text-xl filter drop-shadow-[0_0_8px_rgba(245,158,11,0.4)] leading-none">
+                              {LANDMARK_INFO[landmark.type].icon}
+                            </span>
+                            {isCheckedIn && (
+                              <div className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 rounded-full p-0.5 shadow-md">
+                                <CheckCircle2 size={11} className="stroke-[3]" />
+                              </div>
+                            )}
+                            <span className="text-[7px] sm:text-[8px] font-mono text-amber-300 font-bold bg-slate-950/80 px-1 rounded mt-0.5 leading-none">
+                              +{landmark.points}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Player Avatar */}
+                        {isPlayerHere && (
+                          <motion.div
+                            layoutId="player-avatar"
+                            transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                            className="flex flex-col items-center justify-center z-30"
+                          >
+                            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-teal-300 flex items-center justify-center text-base sm:text-lg shadow-[0_0_15px_rgba(6,182,212,0.8)] border border-white">
+                              {travelerGender === 'female' ? '👧' : '👦'}
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
-
-          {/* REAL-TIME MISTAKE NOTIFICATION BOX (แสดงเฉพาะตอนที่ทำผิด) */}
-          <AnimatePresence>
-            {realtimeAlert && (
-              <motion.div
-                key={`${realtimeAlert.type}-${realtimeAlert.title}-${realtimeAlert.text}`}
-                initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                transition={{ duration: 0.2 }}
-                id="realtime-notification-box"
-                className={`w-full max-w-[460px] mt-3.5 p-3.5 rounded-2xl border-2 shadow-lg flex items-start gap-3 transition-colors ${
-                  realtimeAlert.type === 'error'
-                    ? 'bg-rose-950/85 border-rose-500 text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.3)]'
-                    : 'bg-amber-950/85 border-amber-400 text-amber-100 shadow-[0_0_20px_rgba(245,158,11,0.25)]'
-                }`}
-                role="alert"
-                aria-live="assertive"
-              >
-                <div
-                  className={`p-2 rounded-xl shrink-0 mt-0.5 ${
-                    realtimeAlert.type === 'error'
-                      ? 'bg-rose-500 text-slate-950 animate-bounce'
-                      : 'bg-amber-400 text-slate-950 animate-pulse'
-                  }`}
-                >
-                  <AlertTriangle size={18} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span
-                      className={`text-xs sm:text-sm font-black tracking-wide ${
-                        realtimeAlert.type === 'error' ? 'text-rose-300' : 'text-amber-300'
-                      }`}
-                    >
-                      {realtimeAlert.title}
-                    </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-900/90 text-rose-300 border border-rose-500/40 shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
-                      แจ้งเตือนข้อผิดพลาด
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm leading-relaxed font-medium text-slate-100">
-                    {realtimeAlert.text}
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Execution Controls under Grid */}
           <div className="w-full max-w-[420px] flex gap-2.5 mt-2 shrink-0">
             <button
               onClick={handleStartTravel}
               disabled={isRunning}
-              className={`flex-1 py-2.5 px-5 rounded-2xl font-extrabold text-sm sm:text-base tracking-wider transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
+              className={`flex-1 py-2 sm:py-2.5 px-5 rounded-2xl font-extrabold text-sm sm:text-base tracking-wider transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
                 isRunning
                   ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                   : 'bg-gradient-to-r from-emerald-500 to-green-400 hover:from-emerald-400 hover:to-green-300 text-slate-950 shadow-[0_0_25px_rgba(16,185,129,0.4)] hover:shadow-[0_0_35px_rgba(16,185,129,0.6)] transform hover:scale-[1.02] active:scale-95'
@@ -1003,8 +1318,8 @@ export default function TravelMissionScreen({
             </button>
 
             <button
-              onClick={handleResetSimulation}
-              className="py-2.5 px-4 bg-slate-800/90 hover:bg-slate-700 border border-slate-700 rounded-2xl text-slate-200 font-bold transition-all text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transform active:scale-95 hover:border-slate-500 shadow-md"
+              onClick={() => handleResetSimulation(true)}
+              className="py-2 sm:py-2.5 px-4 bg-slate-800/90 hover:bg-slate-700 border border-slate-700 rounded-2xl text-slate-200 font-bold transition-all text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transform active:scale-95 hover:border-slate-500 shadow-md"
               id="reset-travel-btn"
               title="รีเซ็ตตำแหน่งตัวละครกลับจุดเริ่มต้น"
             >
@@ -1015,8 +1330,8 @@ export default function TravelMissionScreen({
         </div>
 
         {/* RIGHT COLUMN (~40% width): COMMAND CONSOLE & WORKSPACE QUEUE */}
-        <div className="lg:col-span-5 flex flex-col bg-slate-900/70 border border-slate-800/90 rounded-3xl p-3.5 sm:p-4 backdrop-blur-md shadow-2xl h-full min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2.5 shrink-0">
+        <div className="md:col-span-5 flex flex-col bg-slate-900/70 border border-slate-800/90 rounded-3xl p-3 sm:p-3.5 backdrop-blur-md shadow-2xl h-full min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2 shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
               <h3 className="font-extrabold text-slate-100 text-xs sm:text-sm tracking-wide">
@@ -1028,33 +1343,108 @@ export default function TravelMissionScreen({
             </span>
           </div>
 
+          {/* REAL-TIME MISTAKE NOTIFICATION BOX (แสดงด้านบนในส่วนของหน้าควบคุมชุดคำสั่ง) */}
+          <AnimatePresence>
+            {realtimeAlert && (
+              <motion.div
+                key={`${realtimeAlert.type}-${realtimeAlert.title}-${realtimeAlert.text}`}
+                initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                transition={{ duration: 0.18 }}
+                id="realtime-notification-box"
+                className={`w-full mb-2 px-3 py-2 rounded-xl border-2 shadow-lg flex items-start gap-2.5 transition-colors shrink-0 ${
+                  realtimeAlert.type === 'error'
+                    ? 'bg-rose-950/90 border-rose-500 text-rose-100 shadow-[0_0_15px_rgba(244,63,94,0.25)]'
+                    : 'bg-amber-950/90 border-amber-400 text-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                }`}
+                role="alert"
+                aria-live="assertive"
+              >
+                <div
+                  className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                    realtimeAlert.type === 'error'
+                      ? 'bg-rose-500 text-slate-950 animate-bounce'
+                      : 'bg-amber-400 text-slate-950 animate-pulse'
+                  }`}
+                >
+                  <AlertTriangle size={15} />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                    <span
+                      className={`text-xs font-black tracking-wide ${
+                        realtimeAlert.type === 'error' ? 'text-rose-300' : 'text-amber-300'
+                      }`}
+                    >
+                      {realtimeAlert.title}
+                    </span>
+
+                    {/* 3-Level Progressive Hint Stepper Pills */}
+                    <div className="flex items-center gap-1 text-[9px] font-mono">
+                      {([
+                        { tier: 1 as const, label: '1.ชวนคิด' },
+                        { tier: 2 as const, label: '2.ชี้จุดผิด' },
+                        { tier: 3 as const, label: '3.ตัวอย่าง' },
+                      ]).map((t) => {
+                        const isCurrent = realtimeAlert.activeTier === t.tier;
+                        return (
+                          <button
+                            key={t.tier}
+                            type="button"
+                            onClick={() => {
+                              audioSynth.playSfx('click');
+                              setManualGridHintTier(t.tier);
+                            }}
+                            className={`px-1.5 py-0.5 rounded border font-bold transition-all cursor-pointer ${
+                              isCurrent
+                                ? 'bg-amber-400 text-slate-950 border-amber-200'
+                                : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:border-amber-400/60 hover:text-amber-200'
+                            }`}
+                            title={`คลิกเพื่อดูคำใบ้ระดับที่ ${t.tier}`}
+                          >
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <p className="text-[11px] sm:text-xs leading-snug font-medium text-slate-100 mt-0.5">
+                    {realtimeAlert.text}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* กล่องข้อความแจ้งเตือนเมื่อเปิดโหมดวนลูป */}
           <AnimatePresence>
             {isLoopModeActive && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                initial={{ opacity: 0, scale: 0.95, y: -4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: -6 }}
-                transition={{ duration: 0.2 }}
-                className="mb-3.5 p-3 rounded-2xl bg-gradient-to-r from-purple-950/90 via-purple-900/80 to-indigo-950/90 border-2 border-purple-400/90 shadow-[0_0_20px_rgba(168,85,247,0.45)] flex items-start justify-between gap-2.5 backdrop-blur-md"
+                exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                transition={{ duration: 0.18 }}
+                className="mb-2 p-2.5 rounded-xl bg-gradient-to-r from-purple-950/90 via-purple-900/80 to-indigo-950/90 border-2 border-purple-400/90 shadow-[0_0_15px_rgba(168,85,247,0.4)] flex items-start justify-between gap-2 backdrop-blur-md shrink-0"
                 role="alert"
                 id="loop-selection-alert-box"
               >
-                <div className="flex items-start gap-2.5">
-                  <div className="p-2 bg-purple-500 text-white rounded-xl shadow-md shrink-0 animate-pulse">
-                    <Repeat size={18} />
+                <div className="flex items-start gap-2">
+                  <div className="p-1.5 bg-purple-500 text-white rounded-lg shadow-md shrink-0 animate-pulse mt-0.5">
+                    <Repeat size={15} />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs sm:text-sm font-black text-purple-100 tracking-wide">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-xs font-black text-purple-100 tracking-wide">
                         โหมดวนลูปทำงาน ({loopCount} รอบ)
                       </h4>
-                      <span className="text-[10px] bg-purple-500/40 text-purple-200 px-2 py-0.5 rounded-full border border-purple-400/40 font-mono font-bold animate-pulse">
+                      <span className="text-[9px] bg-purple-500/40 text-purple-200 px-1.5 py-0.5 rounded-full border border-purple-400/40 font-mono font-bold animate-pulse">
                         รอเลือกคำสั่ง
                       </span>
                     </div>
-                    <p className="text-xs text-purple-200/95 mt-1 leading-relaxed font-medium">
-                      👇 <strong>กรุณากดเลือกคำสั่งทิศทาง</strong> (ขึ้นบน, ลงล่าง, เลี้ยวซ้าย, เลี้ยวขวา) ด้านล่างนี้ ที่ต้องการให้ทำงานวนซ้ำ <span className="text-amber-300 font-extrabold">{loopCount} รอบ</span>
+                    <p className="text-[11px] text-purple-200/95 mt-0.5 leading-snug font-medium">
+                      👇 <strong>กรุณากดเลือกคำสั่งทิศทาง</strong> ด้านล่างนี้ ที่ต้องการให้ทำงานวนซ้ำ <span className="text-amber-300 font-extrabold">{loopCount} รอบ</span>
                     </p>
                   </div>
                 </div>
@@ -1068,7 +1458,7 @@ export default function TravelMissionScreen({
                   title="ยกเลิกการวนลูป"
                   id="cancel-loop-mode-btn"
                 >
-                  <X size={16} />
+                  <X size={15} />
                 </button>
               </motion.div>
             )}
@@ -1211,6 +1601,12 @@ export default function TravelMissionScreen({
                 {commands.map((cmd, idx) => {
                   const isCurrent = activeExecutingCmdId === cmd.id;
                   const isLoop = cmd.repeat > 1;
+                  const isRepeatedMove =
+                    firstRunMissedLoop &&
+                    !usedLoopInCommands &&
+                    cmd.action !== 'checkin' &&
+                    ((idx > 0 && commands[idx - 1].action === cmd.action) ||
+                      (idx < commands.length - 1 && commands[idx + 1].action === cmd.action));
 
                   return (
                     <motion.div
@@ -1220,12 +1616,14 @@ export default function TravelMissionScreen({
                       className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between border transition-all ${
                         isCurrent
                           ? 'bg-cyan-500 text-slate-950 border-white font-black shadow-[0_0_15px_rgba(6,182,212,0.8)] scale-[1.02]'
+                          : isRepeatedMove
+                          ? 'bg-amber-950/50 border-amber-500/70 text-amber-200'
                           : isLoop
                           ? 'bg-purple-950/50 border-purple-700 text-purple-200'
                           : 'bg-slate-900 border-slate-800 text-slate-200'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className={`font-mono text-[10px] ${isCurrent ? 'text-slate-900' : 'text-slate-500'}`}>
                           0{idx + 1}.
                         </span>
@@ -1241,6 +1639,11 @@ export default function TravelMissionScreen({
                           {cmd.action === 'right' && '➡️ ก้าวเลี้ยวขวา'}
                           {cmd.action === 'checkin' && '📍 คำสั่งเช็คอิน (Check-in)'}
                         </span>
+                        {isRepeatedMove && !isCurrent && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-300 font-mono font-bold text-[10px]">
+                            คำสั่งซ้ำ (ควรใช้ 🔄 วนลูป)
+                          </span>
+                        )}
                       </div>
 
                       <button
@@ -1278,6 +1681,229 @@ export default function TravelMissionScreen({
           </div>
         </div>
       </main>
+
+      {/* ALGORITHM COMPARISON & METACOGNITIVE REFLECTION MODAL (Shown when 5x5 Grid is passed) */}
+      <AnimatePresence>
+        {showAlgorithmComparisonModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 24 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 24 }}
+              className="bg-slate-900 border-2 border-cyan-400/80 rounded-3xl max-w-4xl w-full p-4 sm:p-6 shadow-[0_0_55px_rgba(6,182,212,0.35)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
+              id="algorithm-comparison-modal"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800 shrink-0 flex-wrap">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-1.5">
+                    <CheckCircle2 size={14} className="text-emerald-400" />
+                    <span>ภารกิจเดินตาราง 5x5 ด่านที่ {currentLevelId} สำเร็จ! · สะท้อนคิดและเปรียบเทียบอัลกอริทึม</span>
+                  </div>
+                  <h3 className="text-lg sm:text-2xl font-black text-white tracking-wide">
+                    ⚡ เปรียบเทียบประสิทธิภาพอัลกอริทึม (Algorithm Comparison)
+                  </h3>
+                </div>
+                <span
+                  className={`px-3 py-1.5 rounded-xl font-mono text-xs font-black border shrink-0 ${
+                    totalBlocksUsed <= optimalBlocksCount
+                      ? 'bg-emerald-950/80 border-emerald-400 text-emerald-300'
+                      : 'bg-amber-950/80 border-amber-400 text-amber-300'
+                  }`}
+                >
+                  {totalBlocksUsed <= optimalBlocksCount
+                    ? '🏆 ประสิทธิภาพสูงสุด (Optimal!)'
+                    : `💡 ย่อเพิ่มได้อีก ${totalBlocksUsed - optimalBlocksCount} บล็อก`}
+                </span>
+              </div>
+
+              {/* Main Comparison Banner */}
+              <div className="mt-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-cyan-950/70 via-slate-950 to-emerald-950/70 border-2 border-cyan-500/50 text-center shadow-inner shrink-0">
+                <p className="text-sm sm:text-lg font-black text-white tracking-wide">
+                  ชุดคำสั่งของนักเรียนใช้{' '}
+                  <span
+                    className={`px-2.5 py-0.5 rounded-lg font-mono ${
+                      totalBlocksUsed <= optimalBlocksCount
+                        ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-300'
+                        : 'bg-amber-500/20 border border-amber-400 text-amber-300'
+                    }`}
+                  >
+                    {totalBlocksUsed} บล็อก
+                  </span>{' '}
+                  <span className="text-slate-400 font-mono mx-1">vs</span> ชุดคำสั่งที่สั้นที่สุดใช้{' '}
+                  <span className="px-2.5 py-0.5 rounded-lg bg-cyan-500/20 border border-cyan-400 text-cyan-300 font-mono">
+                    {optimalBlocksCount} บล็อก
+                  </span>
+                </p>
+                <p className="text-xs text-slate-300 mt-1.5">
+                  {totalBlocksUsed <= optimalBlocksCount
+                    ? 'ยอดเยี่ยมมาก! นักเรียนออกแบบอัลกอริทึมได้กระชับที่สุดและใช้การวนลูปได้อย่างคุ้มค่า'
+                    : 'ภารกิจสำเร็จแล้ว! ลองเปรียบเทียบดูว่าชุดคำสั่งที่สั้นที่สุดใช้การย่อยภารกิจและวนลูป (🔄) ยุบรวมคำสั่งซ้ำอย่างไร'}
+                </p>
+              </div>
+
+              {/* Side-by-Side Comparison Columns */}
+              <div className="flex-1 overflow-y-auto mt-3 pr-1 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {/* Left Column: Student's Algorithm */}
+                  <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-cyan-500/40 flex flex-col">
+                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800">
+                      <span className="text-xs sm:text-sm font-extrabold text-cyan-300">
+                        🧑‍💻 ชุดคำสั่งของนักเรียน
+                      </span>
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                        ใช้ {totalBlocksUsed} บล็อก
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                      {commands.map((cmd, idx) => {
+                        const isCanCompress =
+                          cmd.repeat === 1 &&
+                          cmd.action !== 'checkin' &&
+                          ((idx > 0 && commands[idx - 1].action === cmd.action) ||
+                            (idx < commands.length - 1 && commands[idx + 1].action === cmd.action));
+                        return (
+                          <div
+                            key={cmd.id}
+                            className={`px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between border ${
+                              cmd.repeat > 1
+                                ? 'bg-purple-950/50 border-purple-500/50 text-purple-200'
+                                : isCanCompress
+                                ? 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+                                : 'bg-slate-900 border-slate-800 text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[10px] text-slate-500">
+                                0{idx + 1}.
+                              </span>
+                              {cmd.repeat > 1 && (
+                                <span className="px-1.5 py-0.5 rounded bg-purple-900 text-purple-200 font-mono font-bold text-[10px]">
+                                  🔁 {cmd.repeat}x
+                                </span>
+                              )}
+                              <span className="font-bold">
+                                {cmd.action === 'up' && '⬆️ ก้าวขึ้นบน'}
+                                {cmd.action === 'down' && '⬇️ ก้าวลงล่าง'}
+                                {cmd.action === 'left' && '⬅️ ก้าวเลี้ยวซ้าย'}
+                                {cmd.action === 'right' && '➡️ ก้าวเลี้ยวขวา'}
+                                {cmd.action === 'checkin' && '📍 คำสั่งเช็คอิน'}
+                              </span>
+                            </div>
+                            {isCanCompress && (
+                              <span className="text-[10px] font-mono text-amber-300 bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-500/40">
+                                ยุบด้วย 🔄 ได้
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Shortest / Optimal Algorithm */}
+                  <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-emerald-500/40 flex flex-col">
+                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800">
+                      <span className="text-xs sm:text-sm font-extrabold text-emerald-300">
+                        ✨ ชุดคำสั่งที่สั้นที่สุด (Optimal Algorithm)
+                      </span>
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40">
+                        ใช้ {optimalBlocksCount} บล็อก
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                      {optimalCommands.map((cmd, idx) => (
+                        <div
+                          key={idx}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between border ${
+                            cmd.repeat > 1
+                              ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-100'
+                              : 'bg-slate-900 border-slate-800 text-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] text-slate-500">
+                              0{idx + 1}.
+                            </span>
+                            {cmd.repeat > 1 && (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-mono font-bold text-[10px]">
+                                🔁 {cmd.repeat}x
+                              </span>
+                            )}
+                            <span className="font-bold">
+                              {cmd.action === 'up' && '⬆️ ก้าวขึ้นบน'}
+                              {cmd.action === 'down' && '⬇️ ก้าวลงล่าง'}
+                              {cmd.action === 'left' && '⬅️ ก้าวเลี้ยวซ้าย'}
+                              {cmd.action === 'right' && '➡️ ก้าวเลี้ยวขวา'}
+                              {cmd.action === 'checkin' && '📍 คำสั่งเช็คอิน'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 truncate max-w-[140px]">
+                            {cmd.subTitle}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metacognitive Reflection Box */}
+                <div className="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-500/40 flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-300 shrink-0">
+                    <Sparkles size={18} />
+                  </div>
+                  <div className="text-xs sm:text-sm space-y-1">
+                    <strong className="text-amber-300 block">
+                      🧠 มุมสะท้อนคิด (Metacognitive Reflection): ทำไมความสั้นและกระชับของอัลกอริทึมจึงสำคัญ?
+                    </strong>
+                    <p className="text-slate-200 leading-relaxed">
+                      การออกแบบชุดคำสั่งให้ใช้จำนวนบล็อกน้อยที่สุดด้วยการสังเกตรูปแบบซ้ำแล้วใช้{' '}
+                      <strong className="text-purple-300">🔄 วนลูป (Loop)</strong>{' '}
+                      ช่วยให้โปรแกรมทำงานได้รวดเร็ว ประหยัดหน่วยความจำ อ่านตรวจสอบข้อผิดพลาด (Debug) ได้ง่าย และสะท้อนทักษะการคิดเชิงคำนวณทั้ง 4 ด้านอย่างครบถ้วน!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="mt-3.5 pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioSynth.playSfx('click');
+                    setShowAlgorithmComparisonModal(false);
+                    handleResetSimulation();
+                  }}
+                  className="w-full sm:w-auto px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  id="optimize-algorithm-retry-btn"
+                >
+                  <RotateCcw size={16} className="text-cyan-400" />
+                  <span>ลองปรับปรุงชุดคำสั่งให้สั้นลง</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleProceedAfterAlgorithmComparison}
+                  className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-black text-sm sm:text-base transition-all cursor-pointer shadow-[0_0_25px_rgba(6,182,212,0.4)] flex items-center justify-center gap-2"
+                  id="proceed-after-comparison-btn"
+                >
+                  <span>
+                    {currentLevelId <= 4
+                      ? `เข้าใจแล้ว ➔ เข้าสู่ใบความรู้และแบบฝึกหัดด่านที่ ${currentLevelId}`
+                      : 'เข้าใจแล้ว ➔ เข้าสู่ภารกิจสรุปรวบยอด (Boss Challenge) ด่านที่ 5'}
+                  </span>
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* LEVEL 1 DECOMPOSITION KNOWLEDGE & EXERCISE MODALS (Shown after completing Level 1 Grid Mission) */}
       <AnimatePresence>
@@ -1666,11 +2292,11 @@ export default function TravelMissionScreen({
                     </div>
                   </div>
 
-                  {exerciseError && (
-                    <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/50 text-xs sm:text-sm text-rose-200 flex items-center gap-2">
-                      <AlertTriangle size={16} className="text-rose-400 shrink-0" />
-                      <span>{exerciseError}</span>
-                    </div>
+                  {renderProgressiveExerciseHintBox(
+                    '💡 คำใบ้ที่ 1 (ชวนคิด): ลองนึกดูว่าก่อนจะเริ่มลงมือทำโครงงานวิทยาศาสตร์หรือออกเดินทางท่องเที่ยวกับเพื่อน เราต้อง "วางแผน/กำหนดหัวข้อ" อะไรเป็นอันดับแรก และต้อง "เตรียมการ/สรุปผล" อย่างไรให้ครบ 4 ขั้นตอนที่ไม่ซ้ำกัน?',
+                    '🔍 คำใบ้ที่ 2 (ชี้จุดที่ผิด): ตรวจสอบช่องที่มีกรอบสีแดงหรือยังว่างอยู่ — แต่ละขั้นตอนต้องมีความยาวเหมาะสม ไม่ซ้ำกับข้ออื่น และมีคำสำคัญที่เกี่ยวข้องกับภารกิจ (เช่น โครงงาน: หัวข้อ, สมมติฐาน, อุปกรณ์, ทดลอง, สรุปผล | ท่องเที่ยว: สถานที่, งบประมาณ, จองที่พัก/รถ, จัดกระเป๋า)',
+                    '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): [โครงงานวิทยาศาสตร์] 1.กำหนดหัวข้อและปัญหา ➔ 2.ตั้งสมมติฐานและเตรียมอุปกรณ์ ➔ 3.ลงมือทดลองและบันทึกผล ➔ 4.สรุปผลและนำเสนอรายงาน | [วางแผนท่องเที่ยว] 1.เลือกสถานที่และวันเวลา ➔ 2.สำรวจสมาชิกและรวบรวมงบประมาณ ➔ 3.จองที่พักและยานพาหนะเดินทาง ➔ 4.จัดกระเป๋าสัมภาระและออกเดินทาง',
+                    exerciseError
                   )}
                 </div>
 
@@ -2254,11 +2880,11 @@ export default function TravelMissionScreen({
                   })}
                   </div>
 
-                  {level2ExerciseError && (
-                    <div className="mt-2.5 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-xs sm:text-sm text-rose-200 flex items-center gap-2">
-                      <AlertTriangle size={16} className="text-rose-400 shrink-0" />
-                      <span>{level2ExerciseError}</span>
-                    </div>
+                  {renderProgressiveExerciseHintBox(
+                    '💡 คำใบ้ที่ 1 (ชวนคิด): ลองสังเกตความสัมพันธ์ของข้อมูลจากซ้ายไปขวาในแต่ละข้อว่า "เพิ่มขึ้นทีละเท่าไร" หรือ "วนซ้ำเป็นชุดละกี่ตัว" ก่อนเลือกคำตอบลงในช่องว่างทั้ง 3 ช่อง',
+                    '🔍 คำใบ้ที่ 2 (ชี้จุดที่ผิด): ตรวจสอบข้อที่ยังมีช่องว่างหรือมีกรอบเตือนสีเหลือง/แดง — ข้อ 1 เป็นตัวเลขที่เพิ่มทีละค่าคงที่, ข้อ 2 เป็นรูปทรง 3 รูปสลับวนซ้ำ, ข้อ 3 เป็นพยัญชนะไทยที่เว้นระยะห่างเพิ่มขึ้นทีละขั้น, และข้อ 4 เป็นตัวเลขที่ลดลงทีละค่าคงที่',
+                    '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): ข้อ 1 เพิ่มทีละ +3 (20 ➔ 23, 26, 29) | ข้อ 2 วนซ้ำ 🟡,🟩,🔺 ต่อจาก 🟡 คือ (🟩, 🔺, 🟡) | ข้อ 3 ข้ามพยัญชนะเพิ่มขึ้น +5, +6, +7 ตัว ได้ (ต, ผ, ล) | ข้อ 4 ลดลงทีละ -5 (80 ➔ 75, 70, 65)',
+                    level2ExerciseError
                   )}
                 </div>
 
@@ -2955,11 +3581,11 @@ export default function TravelMissionScreen({
                   })}
                   </div>
 
-                  {level3ExerciseError && (
-                    <div className="mt-2.5 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-xs sm:text-sm text-rose-200 flex items-center gap-2">
-                      <AlertTriangle size={16} className="text-rose-400 shrink-0" />
-                      <span>{level3ExerciseError}</span>
-                    </div>
+                  {renderProgressiveExerciseHintBox(
+                    '💡 คำใบ้ที่ 1 (ชวนคิด): ลองถามตัวเองว่า "สิ่งของชิ้นไหนที่ถ้าไม่มีแล้วจะเกิดปัญหาต่อการเรียนออนไลน์หรือการเดินป่าทันที?" ให้เลือกเฉพาะสิ่งจำเป็นหลัก 5 ชิ้น และตัดของฟุ่มเฟือยออก',
+                    '🔍 คำใบ้ที่ 2 (ชี้จุดที่ผิด): ตรวจสอบกล่องคำตอบที่มีกรอบสีแดง (รายการที่ไม่จำเป็น) แล้วคลิกเพื่อนำออก — เช่น ขนมขบเคี้ยว ตุ๊กตา เกมพกพา หรือเครื่องประดับ ไม่ใช่สิ่งจำเป็นหลักในการทำภารกิจ',
+                    '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): [สถานการณ์ที่ 1 เรียนออนไลน์ที่บ้าน] คอมพิวเตอร์/แท็บเล็ต, อินเทอร์เน็ต, สมุดและปากกา, หูฟังและไมโครโฟน, ตารางเรียนและหนังสือเรียน | [สถานการณ์ที่ 2 เดินป่าศึกษาธรรมชาติ] น้ำดื่มสะอาด, แผนที่และเข็มทิศ, ชุดปฐมพยาบาล, ไฟฉาย, อาหารแห้งและเสบียง',
+                    level3ExerciseError
                   )}
                 </div>
 
@@ -3664,11 +4290,11 @@ export default function TravelMissionScreen({
                         </motion.div>
                       )}
 
-                      {level4ExerciseError && (
-                        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/50 text-xs sm:text-sm text-rose-200 flex items-center gap-2">
-                          <AlertTriangle size={16} className="text-rose-400 shrink-0" />
-                          <span>{level4ExerciseError}</span>
-                        </div>
+                      {renderProgressiveExerciseHintBox(
+                        '💡 คำใบ้ที่ 1 (ชวนคิด): สังเกตรูปทรงของสัญลักษณ์ผังงาน (Flowchart) ให้ดี — แคปซูลสีชมพูคือจุดเริ่มต้น/สิ้นสุด, สี่เหลี่ยมผืนผ้าสีส้มคือการกระทำ, และสี่เหลี่ยมขนมเปียกปูนสีเขียวคือการตัดสินใจตามเงื่อนไข!',
+                        '🔍 คำใบ้ที่ 2 (ชี้จุดที่ผิด): ตรวจสอบช่องที่มีกรอบสีแดงหรือยังว่างอยู่ — โดยเฉพาะจุดตัดสินใจ "ถ้าฉันมีเงินมากกว่า 20 บาท" และเส้นทางแยกฝั่งซ้าย (นั่งรถเมล์ ➔ เดินเข้าซอย) กับฝั่งขวา (นั่งรถมอเตอร์ไซค์) ก่อนรวมกันไปถึงโรงเรียน',
+                        '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): ช่องที่ 1: เริ่มต้น ➔ ช่องที่ 2: เดินออกจากบ้าน ➔ ช่องที่ 3 (เงื่อนไข): ถ้าฉันมีเงิน มากกว่า 20 บาท ➔ ฝั่งซ้าย ช่องที่ 4: นั่งรถเมล์ แล้วตามด้วย ช่องที่ 5: เดินเข้าซอย | ฝั่งขวา ช่องที่ 6: นั่งรถมอเตอร์ไซค์ ➔ ช่องที่ 7: ถึงโรงเรียน ➔ ช่องที่ 8: สิ้นสุด',
+                        level4ExerciseError
                       )}
                     </div>
 
@@ -3794,6 +4420,423 @@ export default function TravelMissionScreen({
         })()}
       </AnimatePresence>
 
+      {/* LEVEL 5 POST-MISSION CAPSTONE ASSESSMENT: BOSS CHALLENGE (โจทย์สถานการณ์บูรณาการ 4 ทักษะ) */}
+      <AnimatePresence>
+        {level5LearningStep === 'knowledge' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 25 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 25 }}
+              className="bg-slate-900 border-2 border-rose-400/70 rounded-3xl max-w-4xl w-full p-4 sm:p-6 shadow-[0_0_50px_rgba(244,63,94,0.3)] relative my-auto max-h-[95vh] flex flex-col overflow-hidden"
+              id="level5-knowledge-modal"
+            >
+              <div className="flex-1 overflow-y-auto pr-1 space-y-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-950/80 border border-rose-500/50 text-rose-300 text-xs font-bold">
+                  <Sparkles size={14} className="text-amber-400" />
+                  <span>สรุปทบทวนก่อนทำภารกิจบอส · การบูรณาการแนวคิดเชิงคำนวณทั้ง 4 ด้าน</span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(244,63,94,0.5)] shrink-0">
+                    <Award size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-black text-white tracking-wide">
+                      การบูรณาการทักษะการคิดเชิงคำนวณ 4 มิติ (4-Pillar Integration)
+                    </h3>
+                    <span className="text-xs font-mono text-rose-300">
+                      การใช้ทั้ง 4 ทักษะร่วมกันเพื่อแก้ปัญหาสถานการณ์จริงอย่างเป็นระบบ
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-cyan-500/40">
+                    <div className="text-xs font-black text-cyan-300 mb-1">
+                      1. การแบ่งย่อยปัญหา (Decomposition)
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      ซอยภารกิจหรือระบบใหญ่ที่ซับซ้อนออกเป็นฝ่ายงานหรือช่วงย่อย ๆ ที่จัดการได้ง่าย เช่น แบ่งทีมสำรวจเป็นฝ่ายแผนที่ ฝ่ายเสบียง และฝ่ายบันทึกข้อมูล
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-purple-500/40">
+                    <div className="text-xs font-black text-purple-300 mb-1">
+                      2. การหารูปแบบ (Pattern Recognition)
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      สังเกตความเหมือนหรือรูปแบบที่ซ้ำกัน เช่น กลไกประตูลับหรือเส้นทางซิกแซกที่ซ้ำกัน แล้วนำวิธีการเดิมหรือลูป (🔄) มาประยุกต์ใช้ซ้ำอย่างรวดเร็ว
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-amber-500/40">
+                    <div className="text-xs font-black text-amber-300 mb-1">
+                      3. การคิดเชิงนามธรรม (Abstraction)
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      คัดกรองเฉพาะข้อมูลจำเป็นต่อการแก้ปัญหา เช่น พิกัดจุดปลอดภัยและตำแหน่งสิ่งกีดขวางบนแผนที่ และตัดรายละเอียดที่ไม่จำเป็น (เช่น สีดอกไม้ ลวดลายก้อนหิน) ทิ้งไป
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-emerald-500/40">
+                    <div className="text-xs font-black text-emerald-300 mb-1">
+                      4. การออกแบบอัลกอริทึม (Algorithm Design)
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      วางลำดับขั้นตอนตั้งแต่เริ่มต้น ➔ ตรวจสอบเงื่อนไข ➔ ปฏิบัติการ ➔ สิ้นสุด อย่างชัดเจนเป็นขั้นเป็นตอนเพื่อให้ทำงานสำเร็จและประหยัดทรัพยากรที่สุด
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  audioSynth.playSfx('click');
+                  setLevel5ExerciseError(null);
+                  setLevel5LearningStep('exercise');
+                }}
+                className="mt-4 w-full py-3.5 px-6 bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-400 hover:from-rose-400 hover:to-emerald-300 text-slate-950 font-black text-sm sm:text-base tracking-wide rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(244,63,94,0.4)] flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                id="enter-boss-challenge-btn"
+              >
+                <span>กลับสู่ภารกิจสรุปรวบยอด (Boss Challenge ด่านที่ 5)</span>
+                <ArrowRight size={20} />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {level5LearningStep === 'exercise' && (() => {
+          const BOSS_TASKS: {
+            key: 'decomposition' | 'pattern' | 'abstraction' | 'algorithm';
+            pillarId: number;
+            badge: string;
+            title: string;
+            borderColor: string;
+            badgeColor: string;
+            question: string;
+            correctOptionId: string;
+            guidanceHint: string;
+            options: { id: string; text: string }[];
+          }[] = [
+            {
+              key: 'decomposition',
+              pillarId: 1,
+              badge: '🧩 มิติที่ 1 : Decomposition',
+              title: 'การแบ่งย่อยปัญหาในการจัดทีมสำรวจเมืองโบราณ',
+              borderColor: 'border-cyan-500/50',
+              badgeColor: 'bg-cyan-950/80 text-cyan-300 border-cyan-500/40',
+              question:
+                '1. ทีมสำรวจ ม.2 ต้องจัดเตรียมภารกิจสำรวจเมืองโบราณที่มีงานซับซ้อนหลายด้าน ข้อใดใช้ทักษะ "การแบ่งย่อยปัญหา (Decomposition)" ได้ถูกต้องที่สุด?',
+              correctOptionId: 'd_1',
+              guidanceHint:
+                'การแบ่งย่อยปัญหา คือการซอยงานใหญ่ที่ซับซ้อนออกเป็นฝ่ายงานหรือขั้นตอนย่อยที่ชัดเจนเพื่อให้ง่ายต่อการจัดการ',
+              options: [
+                {
+                  id: 'd_1',
+                  text: 'แบ่งงานออกเป็น 3 ฝ่ายย่อยชัดเจน: 1) ฝ่ายสำรวจเส้นทาง 2) ฝ่ายบันทึกข้อมูลสมบัติ 3) ฝ่ายดูแลความปลอดภัยและเสบียง',
+                },
+                {
+                  id: 'd_2',
+                  text: 'ให้หัวหน้าทีมเพียงคนเดียวรับผิดชอบทุกหน้าที่พร้อมกันทั้งหมดโดยไม่ต้องแบ่งงานย่อย',
+                },
+                {
+                  id: 'd_3',
+                  text: 'เลือกจดจำเฉพาะสีเสื้อผ้าและของเล่นที่เพื่อนนำมาโดยไม่วางแผนแบ่งงาน',
+                },
+              ],
+            },
+            {
+              key: 'pattern',
+              pillarId: 2,
+              badge: '🔄 มิติที่ 2 : Pattern Recognition',
+              title: 'การหารูปแบบกลไกประตูลับโบราณ',
+              borderColor: 'border-purple-500/50',
+              badgeColor: 'bg-purple-950/80 text-purple-300 border-purple-500/40',
+              question:
+                '2. ประตูวิหารโบราณแห่งที่ 1 และ 2 เปิดออกด้วยรหัสกลไกเดียวกันคือ "ก้าวขึ้นบน 3 ช่อง ➔ เช็คอิน" เมื่อพบประตูวิหารแห่งที่ 3 ที่มีสัญลักษณ์ตระกูลเดียวกัน ควรทำอย่างไร?',
+              correctOptionId: 'p_2',
+              guidanceHint:
+                'การหารูปแบบ คือการสังเกตความคล้ายคลึงหรือลำดับที่ซ้ำกันจากปัญหาเดิม แล้วนำรูปแบบนั้นมาประยุกต์แก้ปัญหาใหม่',
+              options: [
+                {
+                  id: 'p_1',
+                  text: 'สุ่มกดคำสั่งทิศทางใหม่ทั้งหมดตั้งแต่ต้นโดยไม่สนใจรหัสที่เคยเปิดสำเร็จมาก่อน',
+                },
+                {
+                  id: 'p_2',
+                  text: 'สังเกตรูปแบบที่ซ้ำกัน แล้วนำชุดคำสั่งลูป "🔁 3x ⬆️ ขึ้นบน ➔ 📍 เช็คอิน" ไปใช้ปลดล็อกวิหารแห่งที่ 3 ทันที',
+                },
+                {
+                  id: 'p_3',
+                  text: 'คัดลอกลวดลายตะไคร่น้ำบนกำแพงวิหารทุกก้อนลงในสมุดวาดภาพ',
+                },
+              ],
+            },
+            {
+              key: 'abstraction',
+              pillarId: 3,
+              badge: '🎯 มิติที่ 3 : Abstraction',
+              title: 'การคิดเชิงนามธรรมสร้างแผนที่นำทางฉุกเฉิน',
+              borderColor: 'border-amber-500/50',
+              badgeColor: 'bg-amber-950/80 text-amber-300 border-amber-500/40',
+              question:
+                '3. ในการสร้าง "แผนที่ดิจิทัลนำทางออกจากเมืองโบราณ" เพื่อให้ทีมเดินทางได้ปลอดภัยและรวดเร็วที่สุด ข้อใดใช้ทักษะ "การคิดเชิงนามธรรม (Abstraction)" ได้ถูกต้อง?',
+              correctOptionId: 'a_3',
+              guidanceHint:
+                'การคิดเชิงนามธรรม คือการคัดกรองเฉพาะข้อมูลจำเป็นต่อเป้าหมาย (เช่น พิกัดและสิ่งกีดขวาง) และตัดรายละเอียดส่วนเกินออก',
+              options: [
+                {
+                  id: 'a_1',
+                  text: 'วาดรายละเอียดก้อนกรวดทุกก้อน สีของใบไม้ และรูปร่างก้อนเมฆลงในแผนที่ทั้งหมด',
+                },
+                {
+                  id: 'a_2',
+                  text: 'บันทึกเฉพาะรายชื่อเพลงโปรดและสีกระเป๋าของสมาชิกในทีมลงในแผนที่นำทาง',
+                },
+                {
+                  id: 'a_3',
+                  text: 'แสดงเฉพาะพิกัดจุดเริ่มต้น จุดเป้าหมาย เส้นทางหลัก และตำแหน่งสิ่งกีดขวาง โดยตัดลวดลายตกแต่งที่ไม่จำเป็นออก',
+                },
+              ],
+            },
+            {
+              key: 'algorithm',
+              pillarId: 4,
+              badge: '⚡ มิติที่ 4 : Algorithm Design',
+              title: 'การออกแบบอัลกอริทึมหุ่นยนต์สำรวจสมบัติ',
+              borderColor: 'border-emerald-500/50',
+              badgeColor: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40',
+              question:
+                '4. ข้อใดคือลำดับขั้นตอนวิธี "การออกแบบอัลกอริทึม (Algorithm Design)" สำหรับสั่งงานหุ่นยนต์สำรวจเมืองโบราณที่ถูกต้องและชัดเจนที่สุด?',
+              correctOptionId: 'al_2',
+              guidanceHint:
+                'การออกแบบอัลกอริทึม ต้องจัดลำดับขั้นตอนจากเริ่มต้น ➔ ตรวจสอบเงื่อนไขหลบสิ่งกีดขวาง ➔ ทำภารกิจที่จุดหมาย ➔ สิ้นสุด',
+              options: [
+                {
+                  id: 'al_1',
+                  text: 'สิ้นสุด ➔ กดเช็คอินทันทีตั้งแต่จุดเริ่มต้น ➔ เดินหน้าชนสิ่งกีดขวาง ➔ เริ่มต้น',
+                },
+                {
+                  id: 'al_2',
+                  text: 'เริ่มต้น ➔ ตรวจจับสิ่งกีดขวางข้างหน้า (ถ้ามีให้เลี้ยวหลบ / ถ้าไม่มีให้เดินหน้า) ➔ เมื่อถึงสถานที่ให้กดเช็คอิน ➔ สิ้นสุด',
+                },
+                {
+                  id: 'al_3',
+                  text: 'สั่งให้หุ่นยนต์เดินสุ่มทิศทางไปเรื่อย ๆ โดยไม่มีการตั้งเงื่อนไขและไม่มีจุดสิ้นสุด',
+                },
+              ],
+            },
+          ];
+
+          const answeredCount = BOSS_TASKS.filter(t => bossAnswers[t.key] !== null).length;
+          const correctTasks = BOSS_TASKS.filter(t => bossAnswers[t.key] === t.correctOptionId);
+          const wrongAnsweredTasks = BOSS_TASKS.filter(
+            t => bossAnswers[t.key] !== null && bossAnswers[t.key] !== t.correctOptionId
+          );
+          const isAllBossCorrect = correctTasks.length === 4;
+
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto"
+            >
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.92, opacity: 0, y: 20 }}
+                className="bg-slate-900 border-2 border-rose-500/70 rounded-3xl max-w-6xl w-full p-4 sm:p-6 shadow-[0_0_55px_rgba(244,63,94,0.28)] relative my-auto max-h-[95vh] flex flex-col overflow-hidden"
+                id="level5-boss-challenge-modal"
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800 shrink-0 flex-wrap">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 text-xs font-mono text-rose-300 bg-rose-950/80 border border-rose-500/40 px-2.5 py-0.5 rounded-md mb-1">
+                      <Sparkles size={13} className="text-amber-400" />
+                      <span>ภารกิจสรุปรวบยอดท้ายด่านที่ 5 (Boss Challenge : Capstone Assessment)</span>
+                    </div>
+                    <h3 className="text-base sm:text-xl font-black text-white leading-snug">
+                      โจทย์สถานการณ์บูรณาการ 4 ทักษะ : ภารกิจสำรวจเมืองโบราณลึกลับ
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      🎯 สถานการณ์: หลังจากเดินตาราง 5x5 สำเร็จ ทีมสำรวจ ม.2 ต้องวางระบบบริหารจัดการและนำทางออกจากเมืองโบราณ จงเลือกวิธีแก้ปัญหาให้ถูกต้องครบทั้ง 4 ทักษะ
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {renderExerciseHeartsHUD()}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        audioSynth.playSfx('click');
+                        setLevel5LearningStep('knowledge');
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-rose-300 transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                      id="view-level5-knowledge-btn"
+                    >
+                      <ChevronLeft size={15} />
+                      <span>ทบทวนสรุป 4 ทักษะ</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Body: 2x2 Grid of the 4 Integrated CT Pillar Tasks */}
+                <div className="flex-1 overflow-y-auto mt-3 pr-1 space-y-3">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {BOSS_TASKS.map((task) => {
+                      const selectedId = bossAnswers[task.key];
+                      return (
+                        <div
+                          key={task.key}
+                          className={`p-3.5 rounded-2xl bg-slate-950/90 border ${task.borderColor} flex flex-col justify-between gap-2.5`}
+                          id={`boss-task-${task.key}`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span
+                                className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${task.badgeColor}`}
+                              >
+                                {task.badge}
+                              </span>
+                              {selectedId && (
+                                <span className="text-[10px] font-mono text-cyan-300">
+                                  เลือกคำตอบแล้ว ✓
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs sm:text-sm font-bold text-slate-100 leading-relaxed">
+                              {task.question}
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            {task.options.map((opt, optIdx) => {
+                              const isSelected = selectedId === opt.id;
+                              return (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => {
+                                    audioSynth.playSfx('click');
+                                    setLevel5ExerciseError(null);
+                                    setBossAnswers(prev => ({
+                                      ...prev,
+                                      [task.key]: opt.id,
+                                    }));
+                                  }}
+                                  className={`w-full p-2.5 rounded-xl border text-left text-xs leading-snug transition-all flex items-start gap-2 cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-cyan-950/85 border-cyan-400 text-white font-bold shadow-[0_0_12px_rgba(6,182,212,0.25)]'
+                                      : 'bg-slate-900/90 border-slate-800 hover:border-slate-600 text-slate-300'
+                                  }`}
+                                  id={`boss-option-${opt.id}`}
+                                >
+                                  <span
+                                    className={`w-5 h-5 rounded-md font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 ${
+                                      isSelected
+                                        ? 'bg-cyan-400 text-slate-950'
+                                        : 'bg-slate-800 text-slate-400'
+                                    }`}
+                                  >
+                                    {String.fromCharCode(65 + optIdx)}
+                                  </span>
+                                  <span className="flex-1">{opt.text}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Progressive 3-Level Hint Box when an error occurs */}
+                  {renderProgressiveExerciseHintBox(
+                    '💡 คำใบ้ที่ 1 (ชวนคิด): ลองจับคู่คำสำคัญของแต่ละทักษะ — Decomposition = แบ่งฝ่ายงานย่อย, Pattern = ใช้รูปแบบลูปที่ซ้ำกัน, Abstraction = คัดเฉพาะพิกัดสำคัญตัดสิ่งฟุ่มเฟือยออก, Algorithm = เรียงลำดับเริ่มต้น ➔ เงื่อนไข ➔ สิ้นสุด',
+                    `🔍 คำใบ้ที่ 2 (ชี้จุดที่ผิด): ${
+                      wrongAnsweredTasks.length > 0
+                        ? wrongAnsweredTasks
+                            .map(t => `${t.badge}: ${t.guidanceHint}`)
+                            .join(' | ')
+                        : 'กรุณาเลือกคำตอบให้ครบทั้ง 4 มิติทักษะก่อนกดส่งคำตอบ'
+                    }`,
+                    '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): มิติที่ 1 เลือกการแบ่งงานเป็น 3 ฝ่ายย่อย (A) • มิติที่ 2 เลือกการนำชุดคำสั่งลูปรูปแบบเดิมไปใช้ปลดล็อก (B) • มิติที่ 3 เลือกแสดงเฉพาะพิกัดจุดปลอดภัยและสิ่งกีดขวาง (C) • มิติที่ 4 เลือกลำดับ เริ่มต้น ➔ ตรวจจับสิ่งกีดขวาง ➔ เช็คอิน ➔ สิ้นสุด (B)',
+                    level5ExerciseError
+                  )}
+                </div>
+
+                {/* Footer Actions */}
+                <div className="mt-3 pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioSynth.playSfx('click');
+                      setLevel5LearningStep('knowledge');
+                    }}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <ChevronLeft size={16} />
+                    <span>ดูใบความรู้สรุป 4 ทักษะ</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (answeredCount < 4) {
+                        audioSynth.playSfx('wrong');
+                        setLevel5ExerciseError(
+                          `กรุณาเลือกคำตอบให้ครบทั้ง 4 มิติทักษะก่อนตรวจคำตอบ (เลือกแล้ว ${answeredCount}/4 ข้อ)`
+                        );
+                        return;
+                      }
+
+                      if (!isAllBossCorrect) {
+                        audioSynth.playSfx('wrong');
+                        const wrongPillarIds = wrongAnsweredTasks.map(t => t.pillarId);
+                        const remaining = deductExerciseHeart(wrongPillarIds);
+                        const wrongNames = wrongAnsweredTasks.map(t => t.badge).join(', ');
+                        setLevel5ExerciseError(
+                          `คำตอบยังไม่ถูกต้อง (${correctTasks.length}/4 มิติ — จุดที่ต้องแก้ไข: ${wrongNames})! สูญเสียหัวใจพลังชีวิต 1 ดวง (เหลือ ❤️ ${remaining}/3)`
+                        );
+                        return;
+                      }
+
+                      audioSynth.playSfx('unlock');
+                      setLevel5ExerciseCompleted(true);
+                      setLevel5ExerciseError(null);
+                      try {
+                        sessionStorage.setItem(
+                          'ct_level5_boss_answers',
+                          JSON.stringify({
+                            bossAnswers,
+                            completed: true,
+                          })
+                        );
+                      } catch (e) {}
+
+                      setLevel5LearningStep(null);
+                      setShowVictoryModal(true);
+                    }}
+                    className="w-full sm:flex-1 py-3 px-6 bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-400 hover:from-rose-400 hover:to-emerald-300 text-slate-950 font-black text-sm sm:text-base rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(244,63,94,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+                    id="submit-boss-challenge-btn"
+                  >
+                    <CheckCircle2 size={18} />
+                    <span>ตรวจคำตอบภารกิจสรุปรวบยอดและผ่านด่านที่ 5 ({answeredCount}/4 ข้อ)</span>
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
       {/* VICTORY MODAL: Mission Accomplished -> Proceed to Next Level */}
       <AnimatePresence>
         {showVictoryModal && (
@@ -3896,43 +4939,114 @@ export default function TravelMissionScreen({
                 </div>
               )}
 
-              {/* Stats Summary Box */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 mb-6 grid grid-cols-3 gap-2 text-center">
-                <div className="border-r border-slate-800">
-                  <span className="text-[10px] text-slate-400 font-mono block">พลังชีวิตคงเหลือ</span>
-                  <div className="flex items-center justify-center gap-1 mt-1.5">
-                    {[1, 2, 3].map((idx) => (
-                      <Heart
-                        key={idx}
-                        size={16}
-                        className={
-                          idx <= hearts
-                            ? 'text-rose-500 fill-rose-500'
-                            : 'text-slate-700 fill-slate-900'
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-                <div className="border-r border-slate-800">
-                  <span className="text-[10px] text-slate-400 font-mono block">คะแนนแบบฝึกหัด</span>
-                  <span className="text-xl sm:text-2xl font-black text-amber-400 font-mono">
-                    {hearts >= 3 ? 100 : hearts === 2 ? 80 : 60}%
+              {currentLevelId === 5 && level5ExerciseCompleted && (
+                <div className="mb-4 p-2.5 rounded-xl bg-rose-950/50 border border-rose-500/40 flex items-center justify-between gap-2 text-xs text-rose-200">
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+                    <span>ทำภารกิจสรุปรวบยอด (Boss Challenge: บูรณาการ 4 ทักษะ) สำเร็จแล้ว!</span>
                   </span>
+                  <button
+                    onClick={() => {
+                      audioSynth.playSfx('click');
+                      setShowVictoryModal(false);
+                      setLevel5LearningStep('exercise');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-rose-500/40 text-[11px] font-bold text-rose-300 cursor-pointer shrink-0"
+                  >
+                    ดูคำตอบ
+                  </button>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-mono block">ระดับดาว</span>
-                  <div className="flex items-center justify-center gap-0.5 mt-1">
-                    {hearts >= 3 ? (
-                      <span className="text-amber-400 text-base">⭐⭐⭐</span>
-                    ) : hearts === 2 ? (
-                      <span className="text-amber-400 text-base">⭐⭐</span>
-                    ) : (
-                      <span className="text-amber-400 text-base">⭐</span>
-                    )}
+              )}
+
+              {/* Stats Summary Box (5x5 Grid Mission + Post-Level Exercise Directly Linked to CT Skill Score) */}
+              {(() => {
+                const trueStats = calculateTrueSkillScore(
+                  levelDiagnostics?.[currentLevelId],
+                  currentLevelId,
+                  { blocks: totalBlocksUsed, usedLoop: usedLoopInCommands },
+                  levelDiagnostics?.[5],
+                  levelGridBlocksUsed?.[5]
+                );
+                return (
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 mb-6 space-y-3">
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="border-r border-slate-800">
+                        <span className="text-[10px] text-slate-400 font-mono block">
+                          ภารกิจตาราง 5x5
+                        </span>
+                        <span className="text-lg sm:text-xl font-black text-cyan-400 font-mono block mt-1">
+                          {trueStats.gridScore}/50
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {totalBlocksUsed}/{currentConfig.targetBlocks3Star} บล็อก {usedLoopInCommands ? '· 🔄 ใช้ลูป' : ''}
+                        </span>
+                      </div>
+                      <div className="border-r border-slate-800">
+                        <span className="text-[10px] text-slate-400 font-mono block">
+                          {currentLevelId <= 4 ? 'แบบฝึกหัดท้ายด่าน' : 'ภารกิจบอส 4 ทักษะ'}
+                        </span>
+                        <span className="text-lg sm:text-xl font-black text-purple-400 font-mono block mt-1">
+                          {trueStats.exerciseScore}/50
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          ผิด {trueStats.exerciseMistakes} ครั้ง
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-mono block">คะแนนทักษะรวม</span>
+                        <span className="text-xl sm:text-2xl font-black text-amber-400 font-mono block leading-tight mt-0.5">
+                          {trueStats.score}%
+                        </span>
+                        <div className="flex items-center justify-center gap-0.5">
+                          {trueStats.stars >= 3 ? (
+                            <span className="text-amber-400 text-xs">⭐⭐⭐</span>
+                          ) : trueStats.stars === 2 ? (
+                            <span className="text-amber-400 text-xs">⭐⭐</span>
+                          ) : (
+                            <span className="text-amber-400 text-xs">⭐</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2.5 border-t border-slate-800/90 flex items-center justify-between flex-wrap gap-2 text-[11px] font-mono text-slate-300">
+                      <span>
+                        พลาดตาราง 5x5: <strong className="text-rose-400">{trueStats.gridMistakes} ครั้ง</strong>
+                      </span>
+                      <span>
+                        {currentLevelId <= 4 ? 'ผิดแบบฝึกหัด:' : 'ผิดภารกิจบอส:'}{' '}
+                        <strong className="text-rose-400">{trueStats.exerciseMistakes} ครั้ง</strong>
+                      </span>
+                      <span>
+                        เริ่มใหม่รวม: <strong className="text-amber-300">{trueStats.retryCount} รอบ</strong>
+                      </span>
+                      <span className="text-cyan-300 font-sans font-bold">
+                        {trueStats.shortTier}
+                      </span>
+                    </div>
+
+                    {/* Algorithm Comparison Summary Banner inside Victory Modal */}
+                    <div className="pt-2.5 border-t border-slate-800/90 flex flex-col sm:flex-row items-center justify-between gap-2 text-left">
+                      <div className="text-[11px] sm:text-xs font-mono text-slate-200">
+                        <span className="text-amber-300 font-bold">⚡ เปรียบเทียบอัลกอริทึม: </span>
+                        ชุดคำสั่งของนักเรียนใช้ <strong className="text-cyan-300">{totalBlocksUsed} บล็อก</strong> vs ชุดคำสั่งที่สั้นที่สุดใช้ <strong className="text-emerald-300">{optimalBlocksCount} บล็อก</strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          audioSynth.playSfx('click');
+                          setShowVictoryModal(false);
+                          setShowAlgorithmComparisonModal(true);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 text-[11px] font-bold transition-all cursor-pointer shrink-0"
+                        id="reopen-algorithm-comparison-btn"
+                      >
+                        🔍 ดูเปรียบเทียบชุดคำสั่ง
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Quick Level 1-4 Picker inside Victory Modal */}
               {currentLevelId <= 4 && (
@@ -3974,6 +5088,7 @@ export default function TravelMissionScreen({
                   onClick={() => {
                     audioSynth.playSfx('click');
                     setShowVictoryModal(false);
+                    onRecordRetry?.(currentLevelId);
                     resetCurrentLevelExerciseState();
                     onMissionSuccess(currentLevelId, currentLevelPoints, totalBlocksUsed, usedLoopInCommands, 'replay');
                     handleResetSimulation();
@@ -4031,12 +5146,13 @@ export default function TravelMissionScreen({
 
               <p className="text-slate-200 text-sm sm:text-base leading-relaxed mb-6 font-sans">
                 คุณตอบแบบฝึกหัดผิดพลาดจนสูญเสียหัวใจครบทั้ง 3 ดวงแล้ว!<br />
-                ไม่เป็นไรนะ ลองทบทวนใบความรู้และคำแนะนำ แล้วเริ่มทำภารกิจใน <span className="text-amber-400 font-bold">ด่านที่ {currentLevelId} ใหม่อีกครั้ง</span>
+                ไม่เป็นไรนะ ลองทบทวนใบความรู้และคำแนะนำ แล้วเริ่มทำภารกิจใน <span className="text-amber-400 font-bold">ด่านที่ {currentLevelId} ใหม่อีกครั้ง</span> (หัวใจจะรีเซ็ตใหม่เพื่อให้เล่นต่อได้)
               </p>
 
               <div className="flex flex-col gap-2.5">
                 <button
                   onClick={() => {
+                    onRecordRetry?.(currentLevelId);
                     resetCurrentLevelExerciseState();
                     handleResetSimulation();
                     setCommands([]);
