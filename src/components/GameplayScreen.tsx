@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, ArrowLeft, Heart, Sparkles, CheckCircle2, ChevronUp, ChevronDown, Inbox, GripVertical, X, HelpCircle } from 'lucide-react';
+import { Volume2, VolumeX, ArrowLeft, Heart, Sparkles, CheckCircle2, ChevronUp, ChevronDown, Inbox, GripVertical, X, HelpCircle, CheckSquare, Square, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { audioSynth } from '../utils/audio';
 import { Question } from '../data/questions';
@@ -88,6 +88,9 @@ export default function GameplayScreen({
   const [draggedSeqIdx, setDraggedSeqIdx] = useState<number | null>(null);
   const [selectedSeqIdx, setSelectedSeqIdx] = useState<number | null>(null);
 
+  // Data Filtering (Abstraction) State
+  const [selectedFilterIndices, setSelectedFilterIndices] = useState<number[]>([]);
+
   // Reset states when question changes
   useEffect(() => {
     setSelectedOption(null);
@@ -98,6 +101,7 @@ export default function GameplayScreen({
     setDraggedOverBoxIdx(null);
     setSelectedSeqIdx(null);
     setDraggedSeqIdx(null);
+    setSelectedFilterIndices([]);
 
     if (!currentQuestion) return;
 
@@ -244,6 +248,13 @@ export default function GameplayScreen({
     }
   };
 
+  const handleToggleFilter = (idx: number) => {
+    audioSynth.playSfx('click');
+    setSelectedFilterIndices(prev => 
+      prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+    );
+  };
+
   const handleSubmit = () => {
     if (currentQuestion.type === 'multiple-choice') {
       if (selectedOption === null) return;
@@ -277,14 +288,19 @@ export default function GameplayScreen({
       }
       onAnswerSubmit(isCorrect, categoryAssignments);
     }
+    else if (currentQuestion.type === 'filter-data') {
+      const correctArr = currentQuestion.correctAnswer as number[];
+      const sortedSelected = [...selectedFilterIndices].sort((a, b) => a - b);
+      const sortedCorrect = [...correctArr].sort((a, b) => a - b);
+      const isCorrect = JSON.stringify(sortedSelected) === JSON.stringify(sortedCorrect);
+      onAnswerSubmit(isCorrect, selectedFilterIndices);
+    }
   };
 
   const handleExitClick = () => {
     audioSynth.playSfx('click');
     onExit();
   };
-
-  const progressPercent = ((currentQuestionIdx) / questions.length) * 100;
 
   return (
     <div className="relative min-h-screen flex flex-col bg-[#0B0F19] text-white overflow-hidden font-sans select-none pb-12">
@@ -305,48 +321,29 @@ export default function GameplayScreen({
             กลับไปหน้าแผนที่
           </button>
 
-          {/* Level Progress */}
-          <div className="flex-1 flex flex-col items-center max-w-sm md:max-w-md">
-            <div className="flex justify-between w-full text-[10px] md:text-xs font-mono text-cyan-400 mb-1">
-              <span>ด่านที่ {levelId} {thaiLevelName}</span>
-              <span>ภารกิจ : {currentQuestionIdx + 1}/{questions.length}</span>
-            </div>
-            {/* Custom Progress Bar */}
-            <div className="w-full bg-slate-950 h-2 rounded-full border border-slate-900 overflow-hidden relative">
-              <motion.div
-                className="bg-gradient-to-r from-cyan-500 to-blue-500 h-full shadow-[0_0_8px_rgba(6,182,212,0.5)]"
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPercent}%` }}
-                transition={{ duration: 0.4 }}
-              />
-            </div>
+          {/* Level Title */}
+          <div className="flex-1 flex items-center justify-center">
+            {(() => {
+              const match = thaiLevelName.match(/^(.*?)\s*(\(.*\))$/);
+              const mainName = match ? match[1] : thaiLevelName;
+              const subText = match ? match[2] : '';
+              return (
+                <div className="text-center font-mono bg-cyan-950/40 px-3.5 py-1.5 rounded-xl border border-cyan-500/30 flex flex-col items-center leading-snug">
+                  <span className="text-xs md:text-sm font-bold text-cyan-400">
+                    ด่านที่ {levelId} : {mainName}
+                  </span>
+                  {subText && (
+                    <span className="text-[11px] md:text-xs font-medium text-cyan-300/80 font-sans">
+                      {subText}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
-          {/* HUD Status: Hearts and Mute */}
+          {/* HUD Status: Mute */}
           <div className="flex items-center gap-4">
-            {/* Battery Cells (Hearts HUD) */}
-            <div className="flex items-center gap-1.5 bg-slate-950/60 border border-slate-900 px-3 py-1.5 rounded-xl shadow-inner">
-              <span className="hidden md:inline-block text-[10px] font-mono text-rose-400 mr-1">LIFE</span>
-              {[1, 2, 3].map((heartIdx) => {
-                const isActive = heartIdx <= hearts;
-                return (
-                  <div key={heartIdx} className="relative">
-                    <Heart
-                      size={18}
-                      className={`transition-all duration-300 ${
-                        isActive
-                          ? "text-rose-500 fill-rose-500 drop-shadow-[0_0_5px_rgba(239,68,68,0.5)] animate-pulse"
-                          : "text-slate-700 fill-slate-950/60"
-                      }`}
-                    />
-                    {!isActive && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[8px] text-rose-500/60 font-mono font-bold">×</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
             {/* Mute toggle button */}
             <button
               onClick={handleToggleAudio}
@@ -835,6 +832,75 @@ export default function GameplayScreen({
                 </div>
               </motion.div>
             )}
+
+            {/* FILTER-DATA (ABSTRACTION DATA SELECTOR) */}
+            {currentQuestion.type === 'filter-data' && (
+              <motion.div
+                key="filter-data-layout"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex flex-col gap-4"
+              >
+                <div className="text-xs md:text-sm text-pink-300 font-sans uppercase tracking-wide flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-pink-950/40 p-3 rounded-xl border border-pink-900/50">
+                  <div className="flex items-center gap-2">
+                    <Filter size={16} className="text-pink-400 animate-pulse shrink-0" />
+                    <span className="font-medium">
+                      วิธีคิดเชิงนามธรรม : คลิกเลือกเฉพาะ <strong>"ข้อมูลจำเป็น (Essential Data)"</strong> ที่ระบบต้องใช้ประมวลผล ส่วนข้อมูลที่ไม่จำเป็นให้เว้นว่างไว้!
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono text-pink-300/90 bg-pink-950/80 px-2.5 py-1 rounded-lg border border-pink-800/60 shrink-0">
+                    เลือกแล้ว {selectedFilterIndices.length} รายการ
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 mt-1">
+                  {currentQuestion.filterItems?.map((item, idx) => {
+                    const isSelected = selectedFilterIndices.includes(idx);
+                    return (
+                      <motion.div
+                        key={idx}
+                        onClick={() => handleToggleFilter(idx)}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        className={`p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer select-none flex items-center justify-between gap-4 ${
+                          isSelected
+                            ? "bg-white border-pink-500 ring-2 ring-pink-500/40 shadow-[0_0_20px_rgba(244,63,94,0.2)] text-slate-900"
+                            : "bg-white/95 border-slate-200 hover:border-pink-300/70 hover:bg-white text-slate-700 shadow-sm"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5 flex-1">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                            isSelected
+                              ? "bg-pink-500 text-white shadow-sm"
+                              : "bg-slate-100 border border-slate-300 text-slate-400"
+                          }`}>
+                            {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+                          </div>
+                          <span className={`text-sm md:text-base lg:text-lg leading-relaxed tracking-wide ${
+                            isSelected ? "font-semibold text-slate-950" : "font-normal text-slate-700"
+                          }`}>
+                            {item.text}
+                          </span>
+                        </div>
+
+                        <div className="shrink-0">
+                          {isSelected ? (
+                            <span className="text-[11px] md:text-xs font-bold font-mono px-3 py-1 rounded-lg bg-pink-100 text-pink-700 border border-pink-200 flex items-center gap-1 shadow-xs">
+                              ✓ ข้อมูลจำเป็น (Keep)
+                            </span>
+                          ) : (
+                            <span className="text-[11px] md:text-xs font-mono px-2.5 py-1 rounded-lg bg-slate-100 text-slate-400 border border-slate-200">
+                              ตัดทิ้ง (Ignore)
+                            </span>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
 
@@ -845,13 +911,15 @@ export default function GameplayScreen({
             disabled={
               (currentQuestion.type === 'multiple-choice' && selectedOption === null) ||
               (currentQuestion.type === 'matching' && matchedPairs.length !== (currentQuestion.matchingLeft?.length || 0)) ||
-              (currentQuestion.type === 'categorize' && Object.keys(categoryAssignments).length !== (currentQuestion.categorizeItems?.length || 0))
+              (currentQuestion.type === 'categorize' && Object.keys(categoryAssignments).length !== (currentQuestion.categorizeItems?.length || 0)) ||
+              (currentQuestion.type === 'filter-data' && selectedFilterIndices.length === 0)
             }
             className={`w-full md:w-auto px-10 py-3.5 rounded-xl font-bold tracking-wider transition-all duration-300 cursor-pointer transform active:scale-95 text-center flex items-center justify-center gap-2 ${
               (
                 (currentQuestion.type === 'multiple-choice' && selectedOption === null) ||
                 (currentQuestion.type === 'matching' && matchedPairs.length !== (currentQuestion.matchingLeft?.length || 0)) ||
-                (currentQuestion.type === 'categorize' && Object.keys(categoryAssignments).length !== (currentQuestion.categorizeItems?.length || 0))
+                (currentQuestion.type === 'categorize' && Object.keys(categoryAssignments).length !== (currentQuestion.categorizeItems?.length || 0)) ||
+                (currentQuestion.type === 'filter-data' && selectedFilterIndices.length === 0)
               )
                 ? "bg-slate-900 border border-slate-950 text-slate-500 cursor-not-allowed"
                 : levelId === 1

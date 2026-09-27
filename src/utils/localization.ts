@@ -26,6 +26,11 @@ export function localizeQuestion(q: Question, name: string): Question {
       ...ci,
       text: replaceNames(ci.text)
     })) : undefined,
-    hint: replaceNames(q.hint)
+    filterItems: q.filterItems ? q.filterItems.map(fi => ({
+      ...fi,
+      text: replaceNames(fi.text)
+    })) : undefined,
+    hint: replaceNames(q.hint),
+    debugHint: q.debugHint ? replaceNames(q.debugHint) : undefined
   };
 }

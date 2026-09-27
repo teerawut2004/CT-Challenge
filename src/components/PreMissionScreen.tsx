@@ -1,370 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { 
-  ArrowUp, ArrowLeft as ArrowLeftIcon, ArrowRight, Sparkles, Flame, Target, Coins, Zap, Volume2, VolumeX
+  ArrowLeft as ArrowLeftIcon, ArrowRight, Sparkles, Flame, Zap, Volume2, VolumeX, BookOpen, CheckCircle2
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { audioSynth } from '../utils/audio';
 import { questionsData } from '../data/questions';
-
-interface CoinJumperProps {
-  character: 'kawin' | 'porjai';
-  onWin: () => void;
-  levelId: number;
-}
-
-function CoinJumper({ character, onWin, levelId }: CoinJumperProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [score, setScore] = useState(0);
-  const [gameWon, setGameWon] = useState(false);
-  
-  const stateRef = useRef({
-    playerY: 138,
-    playerVy: 0,
-    isGrounded: true,
-    coins: [] as Array<{ x: number; y: number; collected: boolean; pulse: number }>,
-    particles: [] as Array<{ x: number; y: number; vx: number; vy: number; alpha: number; color: string }>,
-    stars: [] as Array<{ x: number; y: number; speed: number; size: number }>,
-    score: 0,
-    gameWon: false,
-    frameCount: 0,
-    lastSpawnTime: 0,
-  });
-
-  const jumpForce = -11;
-  const gravity = 0.5;
-  const groundY = 175;
-  const playerX = 80;
-  const playerSize = 36;
-
-  const triggerJump = () => {
-    if (stateRef.current.gameWon) return;
-    if (stateRef.current.isGrounded) {
-      stateRef.current.playerVy = jumpForce;
-      stateRef.current.isGrounded = false;
-      audioSynth.playSfx('click');
-    }
-  };
-
-  useEffect(() => {
-    // Generate initial stars for background parallax movement
-    const initialStars = [];
-    for (let i = 0; i < 20; i++) {
-      initialStars.push({
-        x: Math.random() * 560,
-        y: Math.random() * 150,
-        speed: 1 + Math.random() * 3,
-        size: 1 + Math.random() * 2,
-      });
-    }
-    stateRef.current.stars = initialStars;
-    stateRef.current.coins = [];
-    stateRef.current.particles = [];
-    stateRef.current.score = 0;
-    stateRef.current.gameWon = false;
-    stateRef.current.playerY = groundY - playerSize;
-    stateRef.current.playerVy = 0;
-    stateRef.current.isGrounded = true;
-    setScore(0);
-    setGameWon(false);
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-        e.preventDefault();
-        triggerJump();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-
-    let animationId: number;
-
-    const updateGame = () => {
-      const state = stateRef.current;
-      if (!canvasRef.current) return;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      state.frameCount++;
-
-      // Background Space gradient
-      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      grad.addColorStop(0, '#020617');
-      grad.addColorStop(1, '#0f172a');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Parallax Stars
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      state.stars.forEach(star => {
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        ctx.fill();
-        if (!state.gameWon) {
-          star.x -= star.speed;
-          if (star.x < 0) {
-            star.x = canvas.width;
-            star.y = Math.random() * 150;
-          }
-        }
-      });
-
-      // Spawn Coins
-      const now = Date.now();
-      const spawnInterval = Math.max(600, 1500 - (levelId * 150));
-      if (!state.gameWon && now - state.lastSpawnTime > spawnInterval && state.coins.filter(c => !c.collected).length < 4) {
-        state.coins.push({
-          x: canvas.width + 20,
-          y: 60 + Math.random() * 80, // mid to high coins
-          collected: false,
-          pulse: 0,
-        });
-        state.lastSpawnTime = now;
-      }
-
-      // Draw Floor line with neon glow
-      ctx.strokeStyle = character === 'kawin' ? '#06b6d4' : '#f43f5e';
-      ctx.lineWidth = 3;
-      ctx.shadowColor = character === 'kawin' ? 'rgba(6, 182, 212, 0.5)' : 'rgba(244, 63, 148, 0.5)';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.moveTo(0, groundY);
-      ctx.lineTo(canvas.width, groundY);
-      ctx.stroke();
-      ctx.shadowBlur = 0; // reset glow
-
-      // Grid helper lines
-      ctx.strokeStyle = character === 'kawin' ? 'rgba(6,182,212,0.15)' : 'rgba(244,63,148,0.15)';
-      ctx.lineWidth = 1;
-      const gridSpacing = 40;
-      const coinSpeed = 3.0 + (levelId * 0.9);
-      const floorSpeed = coinSpeed * 0.875;
-      const offset = !state.gameWon ? (state.frameCount * floorSpeed) % gridSpacing : 0;
-      for (let x = -offset; x < canvas.width; x += gridSpacing) {
-        ctx.beginPath();
-        ctx.moveTo(x, groundY);
-        ctx.lineTo(x - 20, canvas.height);
-        ctx.stroke();
-      }
-
-      // Physics logic
-      state.playerY += state.playerVy;
-      state.playerVy += gravity;
-      if (state.playerY >= groundY - playerSize) {
-        state.playerY = groundY - playerSize;
-        state.playerVy = 0;
-        state.isGrounded = true;
-      }
-
-      // Player Emoji
-      ctx.font = '32px sans-serif';
-      ctx.textBaseline = 'top';
-      const playerEmoji = character === 'kawin' ? '👦' : '👧';
-      
-      // Glow under player when airborne
-      if (!state.isGrounded) {
-        ctx.fillStyle = character === 'kawin' ? 'rgba(6, 182, 212, 0.25)' : 'rgba(244, 63, 148, 0.25)';
-        ctx.beginPath();
-        ctx.arc(playerX + playerSize/2, state.playerY + playerSize/2, 18, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      
-      ctx.fillText(playerEmoji, playerX, state.playerY);
-
-      // Coins rendering & collision
-      state.coins.forEach(coin => {
-        if (coin.collected) return;
-
-        if (!state.gameWon) {
-          coin.x -= coinSpeed; // coin movement speed
-        }
-
-        coin.pulse += 0.1;
-        const radius = 10 + Math.sin(coin.pulse) * 1.5;
-
-        // Gold radial gradient coin
-        ctx.beginPath();
-        ctx.arc(coin.x, coin.y, radius, 0, Math.PI * 2);
-        const goldGrad = ctx.createRadialGradient(coin.x, coin.y, 2, coin.x, coin.y, radius);
-        goldGrad.addColorStop(0, '#fef08a');
-        goldGrad.addColorStop(0.5, '#eab308');
-        goldGrad.addColorStop(1, '#ca8a04');
-        ctx.fillStyle = goldGrad;
-        ctx.shadowColor = 'rgba(234, 179, 8, 0.6)';
-        ctx.shadowBlur = 8;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // Centered dollar sign in the coin
-        ctx.fillStyle = '#fef08a';
-        ctx.font = 'bold 9px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('$', coin.x, coin.y);
-        ctx.textAlign = 'left';
-
-        // Collision Check
-        const dx = (playerX + playerSize/2) - coin.x;
-        const dy = (state.playerY + playerSize/2) - coin.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < (playerSize/2 + radius)) {
-          coin.collected = true;
-          state.score++;
-          setScore(state.score);
-          audioSynth.playSfx('unlock');
-
-          // Star splash particles
-          for (let p = 0; p < 8; p++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 1.5 + Math.random() * 3;
-            state.particles.push({
-              x: coin.x,
-              y: coin.y,
-              vx: Math.cos(angle) * speed,
-              vy: Math.sin(angle) * speed,
-              alpha: 1.0,
-              color: '#facc15'
-            });
-          }
-
-          if (state.score >= 10 && !state.gameWon) {
-            state.gameWon = true;
-            setGameWon(true);
-            audioSynth.playSfx('correct');
-          }
-        }
-      });
-
-      // Filter collected and off-screen coins
-      state.coins = state.coins.filter(c => !c.collected && c.x > -30);
-
-      // Update particles
-      state.particles.forEach(p => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.alpha -= 0.025;
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = Math.max(0, p.alpha);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.globalAlpha = 1.0;
-      state.particles = state.particles.filter(p => p.alpha > 0);
-
-      animationId = requestAnimationFrame(updateGame);
-    };
-
-    updateGame();
-
-    return () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [character]);
-
-  // Get difficulty level text
-  const getDifficultyLabel = () => {
-    switch (levelId) {
-      case 1:
-        return { text: "ระดับพื้นฐาน (Basic) 🟢 Speed: 1x", color: "text-emerald-400 bg-emerald-950/40 border-emerald-500/20" };
-      case 2:
-        return { text: "ระดับปานกลาง (Normal) 🟡 Speed: 1.25x", color: "text-yellow-400 bg-yellow-950/40 border-yellow-500/20" };
-      case 3:
-        return { text: "ระดับท้าทาย (Challenging) 🟠 Speed: 1.5x", color: "text-orange-400 bg-orange-950/40 border-orange-500/20" };
-      case 4:
-        return { text: "ระดับก้าวหน้า (Advanced) 🔴 Speed: 1.75x", color: "text-rose-400 bg-rose-950/40 border-rose-500/20" };
-      case 5:
-        return { text: "ระดับปรมาจารย์ (Master) 🔥 Speed: 2x", color: "text-pink-400 bg-pink-950/40 border-pink-500/20 animate-pulse" };
-      default:
-        return { text: `ระดับทั่วไป (Level ${levelId})`, color: "text-slate-400 bg-slate-950/40 border-slate-500/20" };
-    }
-  };
-  const diff = getDifficultyLabel();
-
-  return (
-    <div className="w-full flex flex-col items-center gap-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full max-w-lg bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 gap-2.5">
-        <div className="flex flex-col gap-1 text-left">
-          <span className="text-[11px] text-slate-400 font-medium">
-            🎯 เป้าหมาย : เก็บเหรียญทองให้ครบ 10 เหรียญ
-          </span>
-          <div className={`text-[10px] font-bold font-sans px-2.5 py-0.5 rounded-lg border w-fit ${diff.color}`}>
-            {diff.text}
-          </div>
-        </div>
-        <div className="flex items-center justify-between sm:justify-end gap-1.5 bg-amber-950/40 border border-amber-500/30 px-3 py-2 rounded-xl shrink-0">
-          <Coins size={14} className="text-amber-400 animate-pulse" />
-          <span className="text-xs font-mono text-slate-400 mr-1">เหรียญสะสม:</span>
-          <span className="text-sm font-bold text-amber-300 font-mono">
-            {score} / 10
-          </span>
-        </div>
-      </div>
-
-      <div 
-        onClick={triggerJump}
-        className="relative w-full max-w-lg aspect-[2.5/1] rounded-2xl overflow-hidden border-2 border-slate-800 cursor-pointer hover:border-slate-700 active:scale-[0.99] transition-all duration-150 shadow-inner"
-      >
-        <canvas 
-          ref={canvasRef} 
-          width={500} 
-          height={200} 
-          className="w-full h-full block" 
-        />
-        
-        {!gameWon && score === 0 && (
-          <div className="absolute inset-0 bg-slate-950/40 pointer-events-none flex flex-col items-center justify-center text-center p-4">
-            <span className="text-xs text-slate-300 font-medium">
-              กดปุ่ม <span className="text-cyan-400 font-bold px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[10px]">SPACE</span> หรือ <span className="text-cyan-400 font-bold px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[10px]">คลิกหน้าจอ</span> เพื่อกระโดด
-            </span>
-          </div>
-        )}
-
-        {gameWon && (
-          <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center text-center p-4 animate-fade-in">
-            <span className="text-3xl mb-1">🎉</span>
-            <h3 className="text-sm md:text-base font-bold text-amber-400">
-              ยอดเยี่ยมมาก! เก็บเหรียญครบแล้ว
-            </h3>
-            <p className="text-[10px] text-slate-400 mt-1">
-              ประตูด่านคำถามถูกเปิดออกเรียบร้อยแล้ว
-            </p>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onWin();
-              }}
-              className="mt-3 px-6 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-bold rounded-xl text-xs transition-all duration-200 cursor-pointer shadow-[0_0_15px_rgba(245,158,11,0.4)] flex items-center gap-1"
-            >
-              <Zap size={12} fill="currentColor" /> เข้าสู่แบบทดสอบท้าทายจริง
-            </button>
-          </div>
-        )}
-      </div>
-
-      {!gameWon && (
-        <button
-          type="button"
-          onClick={triggerJump}
-          className={`w-full max-w-lg py-3 rounded-2xl border-2 font-extrabold text-sm tracking-wide transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2 ${
-            character === 'kawin'
-              ? 'bg-cyan-500 border-cyan-300 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
-              : 'bg-pink-500 border-pink-300 text-slate-950 shadow-[0_0_15px_rgba(244,63,94,0.2)]'
-          }`}
-        >
-          <ArrowUp size={16} strokeWidth={3} />
-          กดตรงนี้เพื่อกระโดด (SPACE)
-        </button>
-      )}
-    </div>
-  );
-}
 
 // Full-body Kawin SVG Component
 function KawinFullBody() {
   return (
-    <svg viewBox="0 0 100 160" className="w-28 h-44 drop-shadow-[0_0_15px_rgba(6,182,212,0.4)]">
+    <svg viewBox="0 0 100 160" className="w-16 h-24 md:w-20 md:h-28 drop-shadow-[0_0_12px_rgba(6,182,212,0.4)]">
       {/* Shadow */}
       <ellipse cx="50" cy="148" rx="22" ry="4" fill="rgba(0,0,0,0.4)" />
       
@@ -426,7 +71,7 @@ function KawinFullBody() {
 // Full-body Porjai SVG Component
 function PorjaiFullBody() {
   return (
-    <svg viewBox="0 0 100 160" className="w-28 h-44 drop-shadow-[0_0_15px_rgba(244,63,94,0.4)]">
+    <svg viewBox="0 0 100 160" className="w-16 h-24 md:w-20 md:h-28 drop-shadow-[0_0_12px_rgba(244,63,94,0.4)]">
       {/* Shadow */}
       <ellipse cx="50" cy="148" rx="22" ry="4" fill="rgba(0,0,0,0.4)" />
       
@@ -509,7 +154,6 @@ export default function PreMissionScreen({
   thaiLevelName,
   selectedChar,
   characterName,
-  onSaveCharacter,
   onMissionSuccess,
   onExit,
   soundEnabled,
@@ -519,9 +163,6 @@ export default function PreMissionScreen({
   const currentLevelData = questionsData.find(l => l.id === levelId);
   const description = currentLevelData?.conceptDescription || "";
 
-  // Directly start the mission briefing, bypass character selection
-  const [isPlaying, setIsPlaying] = useState(false);
-
   const handleToggleAudio = () => {
     onToggleSound();
     audioSynth.playSfx('click');
@@ -529,7 +170,7 @@ export default function PreMissionScreen({
 
   const handleStartMission = () => {
     audioSynth.playSfx('click');
-    setIsPlaying(true);
+    onMissionSuccess();
   };
 
   return (
@@ -551,10 +192,10 @@ export default function PreMissionScreen({
           
           <div className="text-center">
             <span className="text-[10px] font-mono tracking-widest text-cyan-400 block uppercase">
-              PRE-MISSION GAMESTAGE
+              MISSION BRIEFING
             </span>
             <span className="text-sm font-bold text-slate-100">
-              ด่านที่ {levelId} {thaiLevelName}
+              ด่านที่ {levelId} : {thaiLevelName}
             </span>
           </div>
 
@@ -570,93 +211,85 @@ export default function PreMissionScreen({
 
       {/* Main Content */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col items-center justify-center relative z-10">
-        
-        <AnimatePresence mode="wait">
-          {!isPlaying ? (
-            /* PHASE 1: MISSION BRIEFING / ACTIVATION */
-            <motion.div
-              key="mission-lobby"
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -15 }}
-              className="w-full max-w-2xl md:max-w-3xl bg-slate-950/80 border border-slate-900 rounded-3xl p-6 md:p-8 shadow-2xl text-center flex flex-col items-center"
-            >
-              <div className="p-3 bg-cyan-950/50 border border-cyan-500/20 rounded-full mb-4">
-                <Target className="text-cyan-400 animate-pulse" size={32} />
+        <motion.div
+          key="mission-lobby"
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="w-full max-w-2xl md:max-w-3xl bg-slate-950/80 border border-slate-900 rounded-3xl p-6 md:p-8 shadow-2xl text-center flex flex-col items-center"
+        >
+          <div className="p-3.5 bg-cyan-950/50 border border-cyan-500/20 rounded-full mb-3">
+            <BookOpen className="text-cyan-400" size={32} />
+          </div>
+
+          <h2 className="text-2xl font-extrabold text-slate-100 font-mono tracking-tight mb-2">
+            ด่านที่ {levelId} : {thaiLevelName}
+          </h2>
+
+          <p className="text-sm md:text-base text-slate-300 max-w-xl mb-6 leading-relaxed">
+            เตรียมความพร้อมก่อนเข้าสู่ด่านโจทย์ความรู้แนวคิดเชิงคำนวณ ศึกษาสาระความรู้และกติกาเพื่อเข้าสู่แบบทดสอบท้าทายกันเลย!
+          </p>
+
+          {/* Mission Details Box */}
+          <div className="w-full mb-6 flex flex-col gap-4 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/80 text-left">
+            <div>
+              <h3 className="text-xs md:text-sm font-bold text-cyan-400 uppercase tracking-widest font-mono mb-2.5 flex items-center gap-1.5">
+                <Sparkles size={15} />
+                สาระความรู้เชิงคำนวณประจำฐาน
+              </h3>
+              <div className="text-slate-100 text-sm md:text-base leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2 custom-scrollbar font-sans font-medium break-words bg-slate-950/50 p-4 rounded-xl border border-slate-800/60">
+                {description}
               </div>
+            </div>
 
-              <h2 className="text-2xl font-extrabold text-slate-100 font-mono tracking-tight mb-2">
-                ด่านที่ {levelId} {thaiLevelName}
-              </h2>
+            <div className="border-t border-slate-800/60 pt-3.5">
+              <h3 className="text-xs md:text-sm font-bold text-amber-400 uppercase tracking-widest font-mono mb-2 flex items-center gap-1.5">
+                <Flame size={15} />
+                คำชี้แจงและกติกาการทำแบบทดสอบ
+              </h3>
+              <ul className="text-slate-200 text-xs md:text-sm leading-relaxed space-y-2 list-none">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-cyan-400 shrink-0 mt-0.5" />
+                  <span>ในแต่ละด่านจะมีหัวใจพลังชีวิต <span className="text-rose-400 font-bold">3 ดวง</span> หากตอบผิดจะเสียหัวใจ 1 ดวง</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-cyan-400 shrink-0 mt-0.5" />
+                  <span>หากตอบถูกติดต่อกัน <span className="text-emerald-400 font-bold">3 ข้อติด (Streak ×3)</span> จะฟื้นฟูหัวใจกลับคืนมา 1 ดวง!</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-cyan-400 shrink-0 mt-0.5" />
+                  <span>หากตอบผิด ระบบจะแสดง <span className="text-yellow-300 font-bold">คำใบ้ชี้แนะ (Hint)</span> เพื่อให้นักเรียนวิเคราะห์และตอบใหม่อีกครั้ง</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-cyan-400 shrink-0 mt-0.5" />
+                  <span>หากหัวใจหมดลง สามารถ <span className="text-cyan-300 font-bold">เริ่มเล่นด่านนั้นๆ ใหม่ได้ทันที</span> โดยไม่ต้องย้อนกลับไปเริ่มด่านแรก</span>
+                </li>
+              </ul>
+            </div>
+          </div>
 
-              <p className="text-sm md:text-base text-slate-300 max-w-xl mb-6 leading-relaxed">
-                เตรียมความพร้อมก่อนเข้าสู่ด่านโจทย์ความรู้แนวคิดเชิงคำนวณ มาร่วมฝึกฝนและทดสอบฝีมือในด่านจำลองพลังงานกันเลย!
+          {/* Dialogue balloon with character */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 w-full mb-6 text-left flex items-center gap-4">
+            <div className="shrink-0">
+              {selectedChar === 'porjai' ? <PorjaiFullBody /> : <KawinFullBody />}
+            </div>
+            <div className="flex-1">
+              <span className="text-[11px] font-bold text-cyan-400 font-mono block mb-1">
+                {selectedChar === 'porjai' ? 'พอใจ' : 'กวิน'} (ผู้ช่วยประจำตัว)
+              </span>
+              <p className="text-slate-200 text-xs md:text-sm leading-relaxed">
+                “สวัสดีครับคุณ <span className="text-cyan-400 font-bold">{characterName}</span> ยินดีต้อนรับสู่ภารกิจด่านที่ {levelId} ศึกษาเนื้อหาและกติกาเรียบร้อยแล้ว กดปุ่มด้านล่างเพื่อเริ่มทำแบบทดสอบท้าทายได้เลยครับ!”
               </p>
+            </div>
+          </div>
 
-              {/* Mission Details Box */}
-              <div className="w-full mb-6 flex flex-col gap-4 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/80 text-left">
-                <div>
-                  <h3 className="text-xs md:text-sm font-bold text-cyan-400 uppercase tracking-widest font-mono mb-2 flex items-center gap-1.5">
-                    <Sparkles size={14} />
-                    สาระความรู้เชิงคำนวณประจำฐาน
-                  </h3>
-                  <div className="text-slate-100 text-sm md:text-base lg:text-lg leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2 custom-scrollbar font-sans font-medium break-words">
-                    {description}
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-800/60 pt-3">
-                  <h3 className="text-xs md:text-sm font-bold text-amber-400 uppercase tracking-widest font-mono mb-1 flex items-center gap-1.5">
-                    <Flame size={14} />
-                    คำชี้แจงและกติกาการเล่น
-                  </h3>
-                  <ul className="text-slate-200 text-xs md:text-sm leading-relaxed space-y-1.5 list-disc list-inside">
-                    <li>กระโดดเก็บเหรียญพลังงานให้ครบ <span className="text-amber-300 font-bold">10 เหรียญ</span> เพื่อเปิดประตูเข้าสู่โจทย์ทดสอบประจำฐาน</li>
-                    <li>ในแต่ละด่านจะมีหัวใจพลังชีวิต <span className="text-rose-400 font-bold">3 ดวง</span> หากตอบผิดจะเสียหัวใจ 1 ดวง</li>
-                    <li>หากตอบถูกติดต่อกัน <span className="text-emerald-400 font-bold">3 ข้อติด</span> จะฟื้นฟูหัวใจกลับคืนมา 1 ดวง!</li>
-                    <li>หากหัวใจหมดลง สามารถ <span className="text-cyan-300 font-bold">เริ่มเล่นด่านนั้นๆ ใหม่ได้ทันที</span> โดยไม่ต้องย้อนกลับไปเริ่มด่านแรก!</li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* Dialogue balloon from Scout helper */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 w-full mb-6 text-left relative">
-                <p className="text-slate-200 text-xs md:text-sm leading-relaxed">
-                  “สวัสดีครับคุณ <span className="text-cyan-400 font-bold">{characterName}</span> ยินดีต้อนรับสู่ภารกิจด่านที่ {levelId} มาร่วมใจกระโดดเก็บเหรียญให้ครบ 10 เหรียญเพื่อเปิดด่านทดสอบและพิชิตดาวดวงนี้กันเลย!”
-                </p>
-              </div>
-
-              {/* Action play button */}
-              <button
-                onClick={handleStartMission}
-                className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold tracking-wider rounded-xl transition-all duration-300 transform active:scale-95 shadow-[0_0_25px_rgba(6,182,212,0.3)] hover:shadow-[0_0_40px_rgba(6,182,212,0.5)] flex items-center justify-center gap-2 cursor-pointer text-sm"
-              >
-                เริ่มภารกิจจำลองกระโดดเก็บเหรียญ! <ArrowRight size={16} />
-              </button>
-
-            </motion.div>
-          ) : (
-            /* PHASE 2: PLAYABLE SIDE-SCROLLING COIN JUMPER MINI-GAME */
-            <motion.div
-              key="playable-jumper"
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              className="w-full max-w-2xl bg-slate-950/80 border border-slate-900 rounded-3xl p-5 shadow-2xl flex flex-col items-center"
-            >
-              <div className="text-center mb-3">
-                <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest bg-cyan-950/30 border border-cyan-500/20 px-2.5 py-1 rounded-md mb-2 inline-block">
-                  มินิเกมจำลองกระโดดเก็บเหรียญ
-                </span>
-                <p className="text-xs text-slate-400">
-                  ผู้เล่น : <span className="text-cyan-400 font-bold">{characterName}</span>
-                </p>
-              </div>
-
-              <CoinJumper character={selectedChar || 'kawin'} onWin={onMissionSuccess} levelId={levelId} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+          {/* Action button: Directly enter gameplay */}
+          <button
+            onClick={handleStartMission}
+            className="w-full max-w-md py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold tracking-wider rounded-xl transition-all duration-300 transform active:scale-95 shadow-[0_0_25px_rgba(6,182,212,0.3)] hover:shadow-[0_0_40px_rgba(6,182,212,0.5)] flex items-center justify-center gap-2 cursor-pointer text-sm md:text-base"
+          >
+            <Zap size={18} fill="currentColor" /> เข้าสู่แบบทดสอบประจำฐาน <ArrowRight size={18} />
+          </button>
+        </motion.div>
       </main>
     </div>
   );

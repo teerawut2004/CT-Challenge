@@ -21,27 +21,24 @@ export function sampleRandomItems<T>(array: T[], count: number): T[] {
 }
 
 /**
- * Returns a fresh randomized list of questions for the specified level.
- * - For Levels 1-4: Selects 5 random questions from the level's question pool.
- * - For Level 5 (Boss Challenge): Randomly picks 1 full scenario (4 pillar questions) or draws 1 question from each CT pillar.
+ * Returns the question list for the specified level.
+ * - Levels 1-4: Exactly 1 question focusing specifically on that pillar.
+ * - Level 5: 1 integrated question requiring the application of all 4 CT pillars.
  */
-export function getRandomizedQuestionsForLevel(levelId: number, count: number = 5): Question[] {
+export function getRandomizedQuestionsForLevel(levelId: number, count: number = 1): Question[] {
   const levelData = questionsData.find(lvl => lvl.id === levelId);
   if (!levelData || !levelData.questions || levelData.questions.length === 0) {
     return [];
   }
 
-  // Boss Stage / Level 5: Pick 1 from each pillar or a full coherent randomized scenario
+  // Boss Stage / Level 5: Pick the integrated scenario question
   if (levelId === 5) {
     if (bossScenariosPool && bossScenariosPool.length > 0) {
-      // Pick a random scenario from pool
-      const randomScenario = bossScenariosPool[Math.floor(Math.random() * bossScenariosPool.length)];
-      return [...randomScenario.questions];
+      return [...bossScenariosPool[0].questions];
     }
-    // Fallback: shuffle questions from level 5
-    return sampleRandomItems(levelData.questions, 4);
+    return [...levelData.questions];
   }
 
-  // Levels 1 to 4: Sample 5 questions randomly from the rich question pool
-  return sampleRandomItems(levelData.questions, count);
+  // Levels 1 to 4: Return representative question for this pillar
+  return [...levelData.questions];
 }

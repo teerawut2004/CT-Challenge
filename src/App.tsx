@@ -1,34 +1,29 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
 import HomeScreen from './components/HomeScreen';
-import LevelSelectionScreen from './components/LevelSelectionScreen';
+import TravelMissionScreen from './components/TravelMissionScreen';
 import GameplayScreen from './components/GameplayScreen';
 import BossChallengeScreen from './components/BossChallengeScreen';
-import PreMissionScreen from './components/PreMissionScreen';
-import RegistrationScreen from './components/RegistrationScreen';
+import FinalDashboardScreen from './components/FinalDashboardScreen';
 import FeedbackOverlay from './components/FeedbackOverlay';
+import DeveloperCreditFooter from './components/DeveloperCreditFooter';
 import { questionsData, Question } from './data/questions';
 import { audioSynth } from './utils/audio';
 import { getRandomizedQuestionsForLevel } from './utils/questionRandomizer';
 
-type ScreenType = 'home' | 'map' | 'gameplay' | 'boss' | 'premission' | 'registration';
+type ScreenType = 'home' | 'grid-mission' | 'gameplay' | 'boss' | 'final-dashboard';
 type FeedbackType = 'correct' | 'incorrect' | 'gameover' | 'level-completed' | null;
 
 export default function App() {
   // --- Game State variables ---
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
-  const [unlockedLevels, setUnlockedLevels] = useState<number[]>([1]);
+  const [maxUnlockedLevel, setMaxUnlockedLevel] = useState<number>(4);
   const [completedLevels, setCompletedLevels] = useState<number[]>([]);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
-  // --- Student Information States ---
-  const [studentName, setStudentName] = useState<string>('');
-  const [studentClass, setStudentClass] = useState<string>('');
-  const [studentNumber, setStudentNumber] = useState<string>('');
-
-  // --- Character State (Persistent across bases/levels) ---
-  const [selectedChar, setSelectedChar] = useState<'kawin' | 'porjai' | null>(null);
-  const [characterName, setCharacterName] = useState<string>('');
+  // --- Traveler Information States ---
+  const [travelerName, setTravelerName] = useState<string>('');
+  const [travelerGender, setTravelerGender] = useState<'female' | 'male'>('female');
 
   // --- Active Level State variables ---
   const [currentLevelId, setCurrentLevelId] = useState<number>(1);
@@ -37,45 +32,50 @@ export default function App() {
   const [hearts, setHearts] = useState<number>(3);
   const [correctStreak, setCorrectStreak] = useState<number>(0);
 
+  // --- Scoring and Analytics States ---
+  const [levelScores, setLevelScores] = useState<Record<number, number>>({ 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 });
+  const [levelGridScores, setLevelGridScores] = useState<Record<number, number>>({ 1: 90, 2: 90, 3: 90, 4: 90, 5: 90 });
+  const [levelGridBlocksUsed, setLevelGridBlocksUsed] = useState<Record<number, { blocks: number; usedLoop: boolean }>>({
+    1: { blocks: 10, usedLoop: true },
+    2: { blocks: 9, usedLoop: true },
+    3: { blocks: 11, usedLoop: true },
+    4: { blocks: 12, usedLoop: true },
+    5: { blocks: 13, usedLoop: true },
+  });
+
   // --- Feedback Overlay State ---
   const [showFeedback, setShowFeedback] = useState<FeedbackType>(null);
   const [activeHintText, setActiveHintText] = useState<string>('');
-  const [justUnlockedLevelId, setJustUnlockedLevelId] = useState<number | null>(null);
-  const [levelScores, setLevelScores] = useState<Record<number, number>>({ 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 });
 
   // --- Load progress from Session Storage on mount ---
   useEffect(() => {
     try {
-      const savedUnlocked = sessionStorage.getItem('ct_unlocked_levels');
+      const savedUnlocked = sessionStorage.getItem('ct_max_unlocked_level');
       const savedCompleted = sessionStorage.getItem('ct_completed_levels');
       const savedSound = sessionStorage.getItem('ct_sound_enabled');
-      const savedChar = sessionStorage.getItem('ct_selected_char');
-      const savedName = sessionStorage.getItem('ct_character_name');
-      const savedStudentName = sessionStorage.getItem('ct_student_name');
-      const savedStudentClass = sessionStorage.getItem('ct_student_class');
-      const savedStudentNumber = sessionStorage.getItem('ct_student_number');
+      const savedName = sessionStorage.getItem('ct_traveler_name') || sessionStorage.getItem('ct_student_name');
+      const savedGender = sessionStorage.getItem('ct_traveler_gender');
       const savedScores = sessionStorage.getItem('ct_level_scores');
+      const savedGridScores = sessionStorage.getItem('ct_level_grid_scores');
+      const savedGridBlocks = sessionStorage.getItem('ct_level_grid_blocks');
 
-      if (savedUnlocked) setUnlockedLevels(JSON.parse(savedUnlocked));
-      if (savedScores) setLevelScores(JSON.parse(savedScores));
+      if (savedUnlocked) setMaxUnlockedLevel(Math.max(4, JSON.parse(savedUnlocked)));
       if (savedCompleted) setCompletedLevels(JSON.parse(savedCompleted));
+      if (savedScores) setLevelScores(JSON.parse(savedScores));
+      if (savedGridScores) setLevelGridScores(JSON.parse(savedGridScores));
+      if (savedGridBlocks) setLevelGridBlocksUsed(JSON.parse(savedGridBlocks));
+
       if (savedSound) {
         const soundVal = JSON.parse(savedSound);
         setSoundEnabled(soundVal);
         audioSynth.setMute(!soundVal);
       }
-      if (savedChar === 'kawin' || savedChar === 'porjai') {
-        setSelectedChar(savedChar);
+      if (savedName) {
+        setTravelerName(savedName);
       }
-      if (savedStudentName) {
-        setStudentName(savedStudentName);
-        setCharacterName(savedStudentName);
-      } else if (savedName) {
-        setStudentName(savedName);
-        setCharacterName(savedName);
+      if (savedGender === 'female' || savedGender === 'male') {
+        setTravelerGender(savedGender);
       }
-      if (savedStudentClass) setStudentClass(savedStudentClass);
-      if (savedStudentNumber) setStudentNumber(savedStudentNumber);
     } catch (e) {
       console.error("Failed to read progress from sessionStorage", e);
     }
@@ -83,91 +83,102 @@ export default function App() {
 
   // --- Sync mute state and music when currentScreen changes ---
   useEffect(() => {
-    if (currentScreen === 'home' || currentScreen === 'map' || currentScreen === 'premission') {
+    if (currentScreen === 'home' || currentScreen === 'grid-mission' || currentScreen === 'final-dashboard') {
       audioSynth.startBgm('map');
     } else if (currentScreen === 'gameplay' || currentScreen === 'boss') {
       audioSynth.startBgm('focus');
     }
   }, [currentScreen, soundEnabled]);
 
-  // --- Save helper ---
-  const saveProgress = (newUnlocked: number[], newCompleted: number[]) => {
-    try {
-      sessionStorage.setItem('ct_unlocked_levels', JSON.stringify(newUnlocked));
-      sessionStorage.setItem('ct_completed_levels', JSON.stringify(newCompleted));
-    } catch (e) {
-      console.error("Failed to save progress to sessionStorage", e);
-    }
-  };
-
-  const handleSaveCharacter = (char: 'kawin' | 'porjai', name: string) => {
-    setSelectedChar(char);
-    setCharacterName(name);
-    try {
-      sessionStorage.setItem('ct_selected_char', char);
-      sessionStorage.setItem('ct_character_name', name);
-    } catch (e) {
-      console.error("Failed to save character to sessionStorage", e);
-    }
-  };
-
+  // --- Audio Toggle ---
   const handleToggleSound = () => {
     const nextVal = !soundEnabled;
     setSoundEnabled(nextVal);
     audioSynth.setMute(!nextVal);
-    sessionStorage.setItem('ct_sound_enabled', JSON.stringify(nextVal));
-  };
-
-  // --- Navigation actions ---
-  const handleStartGame = () => {
-    if (studentName && studentClass && studentNumber) {
-      setCurrentScreen('map');
-    } else {
-      setCurrentScreen('registration');
-    }
-  };
-
-  const handleRegisterStudent = (name: string, klass: string, num: string) => {
-    setStudentName(name);
-    setStudentClass(klass);
-    setStudentNumber(num);
-    setCharacterName(name);
     try {
+      sessionStorage.setItem('ct_sound_enabled', JSON.stringify(nextVal));
+    } catch (e) {}
+  };
+
+  // --- Start Adventure from Home ---
+  const handleStartAdventure = (name: string, gender: 'female' | 'male') => {
+    setTravelerName(name);
+    setTravelerGender(gender);
+    try {
+      sessionStorage.setItem('ct_traveler_name', name);
       sessionStorage.setItem('ct_student_name', name);
-      sessionStorage.setItem('ct_student_class', klass);
-      sessionStorage.setItem('ct_student_number', num);
-      sessionStorage.setItem('ct_character_name', name);
-    } catch (e) {
-      console.error("Failed to save student profile", e);
-    }
+      sessionStorage.setItem('ct_traveler_gender', gender);
+    } catch (e) {}
 
-    setCurrentScreen('map');
-  };
-
-  const handleEditProfile = () => {
-    setCurrentScreen('registration');
-  };
-
-  const handleBackToHome = () => {
-    setCurrentScreen('home');
-  };
-
-  const handleSelectLevel = (levelId: number) => {
-    setCurrentLevelId(levelId);
-    const qs = getRandomizedQuestionsForLevel(levelId, levelId === 5 ? 4 : 5);
-    setActiveQuestions(qs);
-    setCurrentQuestionIdx(0);
+    // Start at the first uncompleted level among 1-4, or level 1
+    const firstUncompleted = [1, 2, 3, 4].find(id => !completedLevels.includes(id)) || 1;
+    setCurrentLevelId(firstUncompleted);
     setHearts(3);
-    setCorrectStreak(0);
+    setCurrentScreen('grid-mission');
+  };
+
+  // --- Grid Mission Success -> Advance to Next Level or Replay Current Level ---
+  const handleGridMissionSuccess = (
+    levelId: number,
+    earnedPoints: number,
+    blocksCount: number,
+    usedLoop: boolean,
+    action: 'next' | 'replay' = 'next'
+  ) => {
+    // Record grid travel stats
+    const updatedGridScores = { ...levelGridScores, [levelId]: earnedPoints };
+    const updatedGridBlocks = { ...levelGridBlocksUsed, [levelId]: { blocks: blocksCount, usedLoop } };
+    setLevelGridScores(updatedGridScores);
+    setLevelGridBlocksUsed(updatedGridBlocks);
+
+    // Save Level completion & star score
+    const newCompleted = completedLevels.includes(levelId)
+      ? completedLevels
+      : [...completedLevels, levelId];
+    setCompletedLevels(newCompleted);
+
+    const nextScores = { ...levelScores, [levelId]: Math.max(1, hearts) };
+    setLevelScores(nextScores);
+
+    const allFourCompleted = [1, 2, 3, 4].every(id => newCompleted.includes(id));
+    const newMaxUnlocked = allFourCompleted ? 5 : Math.max(4, maxUnlockedLevel);
+    setMaxUnlockedLevel(newMaxUnlocked);
+
+    try {
+      sessionStorage.setItem('ct_level_grid_scores', JSON.stringify(updatedGridScores));
+      sessionStorage.setItem('ct_level_grid_blocks', JSON.stringify(updatedGridBlocks));
+      sessionStorage.setItem('ct_completed_levels', JSON.stringify(newCompleted));
+      sessionStorage.setItem('ct_level_scores', JSON.stringify(nextScores));
+      sessionStorage.setItem('ct_max_unlocked_level', JSON.stringify(newMaxUnlocked));
+    } catch (e) {}
+
     setShowFeedback(null);
-    if (levelId === 5) {
-      setCurrentScreen('boss');
+
+    if (action === 'replay') {
+      // Stay on current level and restore hearts
+      setHearts(3);
+      setCurrentScreen('grid-mission');
+      return;
+    }
+
+    // Advance to next uncompleted level among 1-4, or Level 5, or Final Dashboard
+    if (levelId >= 5) {
+      setCurrentScreen('final-dashboard');
     } else {
-      setCurrentScreen('premission');
+      const nextUncompletedIn1To4 = [1, 2, 3, 4].find(id => !newCompleted.includes(id));
+      if (nextUncompletedIn1To4) {
+        setCurrentLevelId(nextUncompletedIn1To4);
+        setHearts(3);
+        setCurrentScreen('grid-mission');
+      } else {
+        setCurrentLevelId(5);
+        setHearts(3);
+        setCurrentScreen('grid-mission');
+      }
     }
   };
 
-  // --- Answer evaluation ---
+  // --- Answer evaluation in Quiz ---
   const handleAnswerSubmit = (isCorrect: boolean, selectedAnswer: any) => {
     const currentLevel = questionsData.find(lvl => lvl.id === currentLevelId);
     const currentQuestionsList = activeQuestions.length > 0 ? activeQuestions : (currentLevel?.questions || []);
@@ -181,16 +192,6 @@ export default function App() {
       const nextStreak = correctStreak + 1;
       setCorrectStreak(nextStreak);
 
-      // Heart recovery rule (Streak x3)
-      if (nextStreak === 3) {
-        if (hearts < 3) {
-          setHearts(prev => prev + 1);
-          // Highlight heart regeneration through visual feedback or log
-          console.log("Heart restored through 3 correct streak!");
-        }
-        setCorrectStreak(0); // Reset streak counter after recovery
-      }
-
       // Check if level fully completed
       const isLastQuestion = currentQuestionIdx === currentQuestionsList.length - 1;
       if (isLastQuestion) {
@@ -198,182 +199,139 @@ export default function App() {
       } else {
         setShowFeedback('correct');
       }
-    } 
-    else {
+    } else {
       audioSynth.playSfx('wrong');
-      setCorrectStreak(0); // Break streak
-      const nextHearts = hearts - 1;
-      setHearts(nextHearts);
-
-      if (nextHearts === 0) {
-        setShowFeedback('gameover');
-      } else {
-        // Set hint text and show incorrect popup
-        setActiveHintText(currentQuestion.hint);
-        setShowFeedback('incorrect');
-      }
+      setCorrectStreak(0);
+      const feedbackMessage = currentQuestion.debugHint 
+        ? `🔍 ${currentQuestion.debugHint}\n\n💡 คำแนะนำ: ${currentQuestion.hint}`
+        : currentQuestion.hint;
+      setActiveHintText(feedbackMessage);
+      setShowFeedback('incorrect');
     }
   };
 
-  // --- Automated feedback actions ---
+  // --- Feedback Overlay Actions ---
   const handleFeedbackAction = () => {
     if (showFeedback === 'correct') {
-      // Move to next question
       setCurrentQuestionIdx(prev => prev + 1);
       setShowFeedback(null);
     } 
     else if (showFeedback === 'incorrect') {
-      // Let player retry the same question without penalty (encourages learning)
       setShowFeedback(null);
     } 
     else if (showFeedback === 'gameover') {
-      // Restart current level with a fresh randomized set of questions
-      const qs = getRandomizedQuestionsForLevel(currentLevelId, currentLevelId === 5 ? 4 : 5);
+      // Restart current level
+      const qs = getRandomizedQuestionsForLevel(currentLevelId, 1);
       setActiveQuestions(qs);
       setCurrentQuestionIdx(0);
       setHearts(3);
       setCorrectStreak(0);
       setShowFeedback(null);
-      if (currentLevelId === 5) {
-        setCurrentScreen('boss');
-      } else {
-        setCurrentScreen('gameplay');
-      }
+      setCurrentScreen('grid-mission');
     } 
     else if (showFeedback === 'level-completed') {
-      // Save Level completion and unlock the next level
-      let newCompleted = [...completedLevels];
-      if (!newCompleted.includes(currentLevelId)) {
-        newCompleted.push(currentLevelId);
-      }
-
-      let newUnlocked = [...unlockedLevels];
-      const nextLevelId = currentLevelId + 1;
-      const hasNextLevel = questionsData.some(lvl => lvl.id === nextLevelId);
-
-      if (hasNextLevel && !newUnlocked.includes(nextLevelId)) {
-        newUnlocked.push(nextLevelId);
-        setJustUnlockedLevelId(nextLevelId); // Flag for map unlock animation
-      }
-
+      // Save Level completion
+      const newCompleted = completedLevels.includes(currentLevelId)
+        ? completedLevels
+        : [...completedLevels, currentLevelId];
       setCompletedLevels(newCompleted);
-      setUnlockedLevels(newUnlocked);
-      saveProgress(newUnlocked, newCompleted);
 
-      // Save the hearts remaining as the score for this level (levels 1 to 5)
-      if (currentLevelId >= 1 && currentLevelId <= 5) {
-        const nextScores = { ...levelScores, [currentLevelId]: hearts };
-        setLevelScores(nextScores);
-        try {
-          sessionStorage.setItem('ct_level_scores', JSON.stringify(nextScores));
-        } catch (e) {
-          console.error("Failed to save level scores", e);
-        }
-      }
+      // Save question star score based on remaining hearts
+      const nextScores = { ...levelScores, [currentLevelId]: Math.max(1, hearts) };
+      setLevelScores(nextScores);
 
-      // Return to galaxy map
-      setCurrentScreen('map');
+      try {
+        sessionStorage.setItem('ct_completed_levels', JSON.stringify(newCompleted));
+        sessionStorage.setItem('ct_level_scores', JSON.stringify(nextScores));
+      } catch (e) {}
+
       setShowFeedback(null);
+
+      // Check if all 5 levels completed
+      if (currentLevelId >= 5) {
+        setCurrentScreen('final-dashboard');
+      } else {
+        // Unlock next level and advance to next level's Grid Mission
+        const nextLevel = currentLevelId + 1;
+        const newMaxUnlocked = Math.max(maxUnlockedLevel, nextLevel);
+        setMaxUnlockedLevel(newMaxUnlocked);
+        try {
+          sessionStorage.setItem('ct_max_unlocked_level', JSON.stringify(newMaxUnlocked));
+        } catch (e) {}
+
+        setCurrentLevelId(nextLevel);
+        setHearts(3);
+        setCurrentScreen('grid-mission');
+      }
     }
   };
 
-  const handleClearJustUnlocked = useCallback(() => {
-    setJustUnlockedLevelId(null);
-  }, []);
-
-  // --- Clear Progress helper ---
-  const handleResetProgress = () => {
-    setUnlockedLevels([1]);
-    setCompletedLevels([]);
-    setSelectedChar(null);
-    setCharacterName('');
-    setStudentName('');
-    setStudentClass('');
-    setStudentNumber('');
-    setLevelScores({ 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 });
-    saveProgress([1], []);
+  // --- Reset All Progress helper (Play Again) ---
+  const handlePlayAgain = () => {
     try {
-      sessionStorage.removeItem('ct_unlocked_levels');
+      sessionStorage.removeItem('ct_max_unlocked_level');
       sessionStorage.removeItem('ct_completed_levels');
-      sessionStorage.removeItem('ct_selected_char');
-      sessionStorage.removeItem('ct_character_name');
-      sessionStorage.removeItem('ct_student_name');
-      sessionStorage.removeItem('ct_student_class');
-      sessionStorage.removeItem('ct_student_number');
       sessionStorage.removeItem('ct_level_scores');
+      sessionStorage.removeItem('ct_level_grid_scores');
+      sessionStorage.removeItem('ct_level_grid_blocks');
     } catch (e) {}
-    setJustUnlockedLevelId(null);
+
+    setMaxUnlockedLevel(4);
+    setCompletedLevels([]);
+    setCurrentLevelId(1);
+    setLevelScores({ 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 });
+    setLevelGridScores({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
+    setLevelGridBlocksUsed({
+      1: { blocks: 0, usedLoop: false },
+      2: { blocks: 0, usedLoop: false },
+      3: { blocks: 0, usedLoop: false },
+      4: { blocks: 0, usedLoop: false },
+      5: { blocks: 0, usedLoop: false },
+    });
+    setCurrentScreen('home');
   };
+
+  // Calculate total accumulated score (grid mission points + quiz points)
+  const totalGridPoints = (Object.values(levelGridScores) as number[]).reduce((a, b) => a + b, 0);
+  const totalQuizPoints = (Object.values(levelScores) as number[]).reduce((a, b) => a + (b * 20), 0);
+  const totalAccumulatedScore = totalGridPoints + totalQuizPoints;
 
   const activeLevel = questionsData.find(lvl => lvl.id === currentLevelId);
 
   return (
     <div className="bg-[#0B0F19] min-h-screen text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
       
-      {/* 1. Home Screen */}
+      {/* 1. Home Screen (Title + Rules modal + Traveler Profile Creation) */}
       {currentScreen === 'home' && (
         <HomeScreen
-          onStartGame={handleStartGame}
+          onStartAdventure={handleStartAdventure}
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
         />
       )}
 
-      {/* Student Registration Screen */}
-      {currentScreen === 'registration' && (
-        <RegistrationScreen
-          onRegister={handleRegisterStudent}
-          onBack={handleBackToHome}
-          initialName={studentName}
-          initialClass={studentClass}
-          initialNumber={studentNumber}
-          soundEnabled={soundEnabled}
-          onToggleSound={handleToggleSound}
-        />
-      )}
-
-      {/* 2. Level Map Selection Screen */}
-      {currentScreen === 'map' && (
-        <LevelSelectionScreen
-          unlockedLevels={unlockedLevels}
+      {/* 2. Main Game Screen: Grid Travel Mission Screen (5x5 Matrix + Console) */}
+      {currentScreen === 'grid-mission' && (
+        <TravelMissionScreen
+          currentLevelId={currentLevelId}
+          maxUnlockedLevel={maxUnlockedLevel}
           completedLevels={completedLevels}
-          onSelectLevel={handleSelectLevel}
-          onBack={handleBackToHome}
-          soundEnabled={soundEnabled}
-          onToggleSound={handleToggleSound}
-          justUnlockedLevelId={justUnlockedLevelId}
-          onClearJustUnlocked={handleClearJustUnlocked}
-          onResetProgress={handleResetProgress}
-          studentName={studentName}
-          studentClass={studentClass}
-          studentNumber={studentNumber}
-          onEditProfile={handleEditProfile}
-        />
-      )}
-
-      {/* Pre-mission Story/Game Screen */}
-      {currentScreen === 'premission' && activeLevel && (
-        <PreMissionScreen
-          levelId={activeLevel.id}
-          levelName={activeLevel.name}
-          thaiLevelName={activeLevel.thaiName}
-          selectedChar={selectedChar}
-          characterName={characterName}
-          onSaveCharacter={handleSaveCharacter}
-          onMissionSuccess={() => {
-            if (activeLevel.id === 5) {
-              setCurrentScreen('boss');
-            } else {
-              setCurrentScreen('gameplay');
-            }
-          }}
-          onExit={() => setCurrentScreen('map')}
+          travelerName={travelerName}
+          travelerGender={travelerGender}
+          hearts={hearts}
+          onHeartsChange={setHearts}
+          totalAccumulatedScore={totalAccumulatedScore}
+          levelGridScores={levelGridScores}
+          levelGridBlocksUsed={levelGridBlocksUsed}
+          onLevelChange={(newLevelId) => setCurrentLevelId(newLevelId)}
+          onMissionSuccess={handleGridMissionSuccess}
+          onExitToHome={() => setCurrentScreen('home')}
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
         />
       )}
 
-      {/* 3. Gameplay Screen (Levels 1-4) */}
+      {/* 3. Gameplay Screen: CT Questions for Levels 1-4 */}
       {currentScreen === 'gameplay' && activeLevel && (
         <GameplayScreen
           levelId={activeLevel.id}
@@ -382,53 +340,76 @@ export default function App() {
           questions={activeQuestions.length > 0 ? activeQuestions : activeLevel.questions}
           currentQuestionIdx={currentQuestionIdx}
           hearts={hearts}
-          characterName={characterName}
+          characterName={travelerName}
           onAnswerSubmit={handleAnswerSubmit}
           onExit={() => {
-            setCurrentScreen('map');
+            setCurrentScreen('grid-mission');
           }}
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
         />
       )}
 
-      {/* 4. Boss Challenge Screen (Level 5) */}
+      {/* 4. Boss Challenge Screen: CT Questions for Level 5 */}
       {currentScreen === 'boss' && activeLevel && (
         <BossChallengeScreen
           questions={activeQuestions.length > 0 ? activeQuestions : activeLevel.questions}
           currentQuestionIdx={currentQuestionIdx}
           hearts={hearts}
-          characterName={characterName}
+          characterName={travelerName}
           onAnswerSubmit={handleAnswerSubmit}
           onExit={() => {
-            setCurrentScreen('map');
+            setCurrentScreen('grid-mission');
           }}
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
         />
       )}
 
-      {/* 5. Automated Feedback Modals */}
+      {/* 5. Final Tech Analytics Dashboard Screen (Automatic after completing all 5 levels) */}
+      {currentScreen === 'final-dashboard' && (
+        <FinalDashboardScreen
+          travelerName={travelerName}
+          travelerGender={travelerGender}
+          totalAccumulatedScore={totalAccumulatedScore}
+          levelScores={levelScores}
+          levelGridScores={levelGridScores}
+          levelGridBlocksUsed={levelGridBlocksUsed}
+          onPlayAgain={handlePlayAgain}
+        />
+      )}
+
+      {/* Feedback Overlay Modals (Correct / Incorrect Hint / Level Completed / Game Over) */}
       <AnimatePresence>
         {showFeedback && (
           <FeedbackOverlay
             type={showFeedback}
             hintText={activeHintText}
             onAction={handleFeedbackAction}
+            onReplayLevel={() => {
+              setShowFeedback(null);
+              setHearts(3);
+              setCurrentScreen('grid-mission');
+            }}
+            levelId={currentLevelId}
             starsCount={hearts}
             isFinalLevel={currentLevelId === 5}
-            studentName={studentName}
-            studentClass={studentClass}
-            studentNumber={studentNumber}
+            studentName={travelerName}
+            studentClass="ม.2"
+            studentNumber="-"
             levelScores={levelScores}
             onClearAndExit={() => {
-              handleResetProgress();
-              setCurrentScreen('home');
+              handlePlayAgain();
               setShowFeedback(null);
             }}
           />
         )}
       </AnimatePresence>
+
+      {/* Developer Credit Footer for in-app screens */}
+      {currentScreen !== 'home' && (
+        <DeveloperCreditFooter />
+      )}
 
     </div>
   );

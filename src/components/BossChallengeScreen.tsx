@@ -76,6 +76,9 @@ export default function BossChallengeScreen({
 
   // Get matching icon for current CT pillar question
   const getPillarIcon = (index: number) => {
+    if (questions.length === 1) {
+      return <Sparkles size={18} className="text-amber-400 animate-pulse" />;
+    }
     switch (index) {
       case 0: return <Layers size={18} className="text-cyan-400" />;
       case 1: return <Grid size={18} className="text-purple-400" />;
@@ -86,6 +89,9 @@ export default function BossChallengeScreen({
   };
 
   const getPillarColorBadge = (index: number) => {
+    if (questions.length === 1) {
+      return "bg-gradient-to-r from-cyan-950/80 via-purple-950/80 to-rose-950/80 text-rose-300 border-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.3)]";
+    }
     switch (index) {
       case 0: return "bg-cyan-950/60 text-cyan-400 border-cyan-500/20";
       case 1: return "bg-purple-950/60 text-purple-400 border-purple-500/20";
@@ -94,8 +100,6 @@ export default function BossChallengeScreen({
       default: return "bg-rose-950/60 text-rose-400 border-rose-500/20";
     }
   };
-
-  const progressPercent = (currentQuestionIdx / questions.length) * 100;
 
   return (
     <div className="relative min-h-screen flex flex-col bg-[#050811] text-white overflow-hidden font-sans select-none pb-12">
@@ -118,48 +122,19 @@ export default function BossChallengeScreen({
             กลับไปแผนที่
           </button>
 
-          <div className="flex-1 flex flex-col items-center max-w-sm md:max-w-md">
-            <div className="flex justify-between w-full text-[10px] md:text-xs font-mono text-rose-400 mb-1">
-              <span className="flex items-center gap-1 font-bold">
-                <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
-                ด่านประยุกต์แก้ไขปัญหาสุดท้าทาย (Final Arena)
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center text-center bg-rose-950/40 px-3.5 py-1.5 rounded-xl border border-rose-500/30 leading-snug">
+              <span className="flex items-center gap-1.5 text-xs md:text-sm font-mono text-rose-400 font-bold">
+                <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping shrink-0" />
+                <span>ด่านที่ 5 : เมืองโบราณลึกลับ</span>
               </span>
-              <span>ภารกิจสุดยอดข้อที่ : {currentQuestionIdx + 1}/{questions.length}</span>
-            </div>
-            <div className="w-full bg-slate-950 h-2 rounded-full border border-rose-950 overflow-hidden relative">
-              <motion.div
-                className="bg-gradient-to-r from-rose-500 to-red-600 h-full shadow-[0_0_10px_rgba(239,68,68,0.6)]"
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPercent}%` }}
-                transition={{ duration: 0.4 }}
-              />
+              <span className="text-[11px] md:text-xs font-medium text-rose-300/80 font-sans">
+                (ผจญภัยครั้งสุดท้ายในเมืองโบราณที่เต็มไปด้วยสมบัติ)
+              </span>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Battery Cells HUD */}
-            <div className="flex items-center gap-1.5 bg-slate-950/80 border border-rose-950/50 px-3 py-1.5 rounded-xl">
-              <span className="hidden md:inline-block text-[10px] font-mono text-rose-400 mr-1 uppercase">LIFE CORES</span>
-              {[1, 2, 3].map((idx) => {
-                const isActive = idx <= hearts;
-                return (
-                  <div key={idx} className="relative">
-                    <Heart
-                      size={18}
-                      className={`transition-all duration-300 ${
-                        isActive
-                          ? "text-rose-500 fill-rose-500 drop-shadow-[0_0_5px_#f43f5e]"
-                          : "text-slate-800 fill-slate-950"
-                      }`}
-                    />
-                    {!isActive && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[8px] text-rose-500/60 font-mono font-bold">×</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
             <button
               onClick={handleToggleAudio}
               className="p-2 bg-slate-900 border border-slate-800 hover:border-rose-500/50 hover:bg-slate-900/80 rounded-xl transition-all duration-200 text-rose-400 cursor-pointer text-xs"
@@ -229,14 +204,13 @@ export default function BossChallengeScreen({
                     {getPillarIcon(currentQuestionIdx)}
                   </div>
                   <span className={`text-xs font-bold font-mono uppercase px-2.5 py-1 rounded-lg border tracking-wider ${getPillarColorBadge(currentQuestionIdx)}`}>
-                    {currentQuestionIdx === 0 ? "Decomposition" :
-                     currentQuestionIdx === 1 ? "Pattern Recognition" :
-                     currentQuestionIdx === 2 ? "Abstraction" : "Algorithm Design"}
+                    {questions.length === 1
+                      ? "4 Pillars Integration (บูรณาการประยุกต์ใช้ทักษะทั้ง 4 ด้าน)"
+                      : (currentQuestionIdx === 0 ? "Decomposition" :
+                         currentQuestionIdx === 1 ? "Pattern Recognition" :
+                         currentQuestionIdx === 2 ? "Abstraction" : "Algorithm Design")}
                   </span>
                 </div>
-                <span className="text-[10px] font-mono bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-slate-400">
-                  QUESTION {currentQuestionIdx + 1} OF 4
-                </span>
               </div>
 
               {/* Question Text */}
@@ -278,7 +252,7 @@ export default function BossChallengeScreen({
                           >
                             {String.fromCharCode(65 + idx)}
                           </span>
-                          <span className="text-sm md:text-base lg:text-lg font-light leading-relaxed tracking-wide text-slate-800 flex-1">
+                          <span className="text-sm md:text-base font-normal leading-relaxed tracking-wide text-slate-800 flex-1 whitespace-pre-line break-words">
                             {optionObj.text}
                           </span>
                         </button>
