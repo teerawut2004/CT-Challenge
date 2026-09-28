@@ -105,6 +105,16 @@ export default function TravelMissionScreen({
   const [level1LearningStep, setLevel1LearningStep] = useState<'knowledge' | 'exercise' | null>(null);
   const [scienceProjectSteps, setScienceProjectSteps] = useState<string[]>(['', '', '', '']);
   const [tripPlanningSteps, setTripPlanningSteps] = useState<string[]>(['', '', '', '']);
+  const [activeDecompCategory, setActiveDecompCategory] = useState<'science' | 'trip'>('science');
+  const [draggingDecompItem, setDraggingDecompItem] = useState<{
+    value: string;
+    fromCategory?: 'science' | 'trip';
+    fromSlotIdx?: number;
+  } | null>(null);
+  const [dragOverDecompTarget, setDragOverDecompTarget] = useState<{
+    category: 'science' | 'trip';
+    slotIdx: number | 'box';
+  } | null>(null);
   const [exerciseError, setExerciseError] = useState<string | null>(null);
   const [exerciseCompleted, setExerciseCompleted] = useState<boolean>(false);
 
@@ -183,19 +193,118 @@ export default function TravelMissionScreen({
   const [level5ExerciseError, setLevel5ExerciseError] = useState<string | null>(null);
   const [level5ExerciseCompleted, setLevel5ExerciseCompleted] = useState<boolean>(false);
 
-  // Refs for tracking execution cancellation
+  // Refs for tracking execution cancellation & drag-and-drop auto-scrolling
   const isCancelledRef = useRef(false);
+  const exerciseScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const dragPointerYRef = useRef<number | null>(null);
+  const dragAutoScrollDirRef = useRef<'up' | 'down' | null>(null);
+
+  const isAnyExerciseDragging = Boolean(
+    draggingDecompItem !== null ||
+      draggingItem !== null ||
+      draggingAbstractionItem !== null ||
+      draggingFlowchartItem !== null
+  );
+
+  // Global auto-scroll & mouse-wheel support while dragging cards in any exercise modal
+  useEffect(() => {
+    if (!isAnyExerciseDragging) {
+      dragPointerYRef.current = null;
+      dragAutoScrollDirRef.current = null;
+      return;
+    }
+
+    let rafId: number | null = null;
+
+    const performEdgeScroll = (clientY: number) => {
+      const container = exerciseScrollContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const edgeThreshold = Math.min(115, Math.max(65, rect.height * 0.24));
+
+      if (clientY < rect.top + edgeThreshold) {
+        const dist = Math.max(1, rect.top + edgeThreshold - clientY);
+        const ratio = Math.min(1.6, dist / edgeThreshold);
+        container.scrollTop -= Math.max(4, Math.round(ratio * 16));
+      } else if (clientY > rect.bottom - edgeThreshold) {
+        const dist = Math.max(1, clientY - (rect.bottom - edgeThreshold));
+        const ratio = Math.min(1.6, dist / edgeThreshold);
+        container.scrollTop += Math.max(4, Math.round(ratio * 16));
+      }
+    };
+
+    const handleGlobalDragOver = (e: DragEvent) => {
+      dragPointerYRef.current = e.clientY;
+      const container = exerciseScrollContainerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        if (
+          e.clientX >= rect.left - 40 &&
+          e.clientX <= rect.right + 40 &&
+          e.clientY >= rect.top - 60 &&
+          e.clientY <= rect.bottom + 60
+        ) {
+          e.preventDefault();
+        }
+      }
+      performEdgeScroll(e.clientY);
+    };
+
+    const handleGlobalWheelDuringDrag = (e: WheelEvent) => {
+      const container = exerciseScrollContainerRef.current;
+      if (!container) return;
+      container.scrollTop += e.deltaY;
+    };
+
+    const resetDragStates = () => {
+      dragPointerYRef.current = null;
+      dragAutoScrollDirRef.current = null;
+    };
+
+    const tickAutoScroll = () => {
+      const container = exerciseScrollContainerRef.current;
+      if (container) {
+        if (dragAutoScrollDirRef.current === 'up') {
+          container.scrollTop -= 12;
+        } else if (dragAutoScrollDirRef.current === 'down') {
+          container.scrollTop += 12;
+        } else if (dragPointerYRef.current !== null) {
+          performEdgeScroll(dragPointerYRef.current);
+        }
+      }
+      rafId = window.requestAnimationFrame(tickAutoScroll);
+    };
+
+    window.addEventListener('dragover', handleGlobalDragOver, { capture: true });
+    window.addEventListener('wheel', handleGlobalWheelDuringDrag, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener('dragend', resetDragStates, { capture: true });
+    window.addEventListener('drop', resetDragStates, { capture: true });
+    rafId = window.requestAnimationFrame(tickAutoScroll);
+
+    return () => {
+      window.removeEventListener('dragover', handleGlobalDragOver, { capture: true });
+      window.removeEventListener('wheel', handleGlobalWheelDuringDrag, { capture: true });
+      window.removeEventListener('dragend', resetDragStates, { capture: true });
+      window.removeEventListener('drop', resetDragStates, { capture: true });
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [isAnyExerciseDragging]);
 
   // Load saved Decomposition, Pattern & Abstraction Exercise answers if available
   useEffect(() => {
     try {
-      const savedEx = sessionStorage.getItem('ct_level1_decomposition_answers');
+      const savedEx = sessionStorage.getItem('ct_level1_decomposition_answers_v2');
       if (savedEx) {
         const parsed = JSON.parse(savedEx);
-        if (Array.isArray(parsed.scienceProjectSteps) && parsed.scienceProjectSteps.length >= 4) {
+        if (Array.isArray(parsed.scienceProjectSteps) && parsed.scienceProjectSteps.length === 4) {
           setScienceProjectSteps(parsed.scienceProjectSteps);
         }
-        if (Array.isArray(parsed.tripPlanningSteps) && parsed.tripPlanningSteps.length >= 4) {
+        if (Array.isArray(parsed.tripPlanningSteps) && parsed.tripPlanningSteps.length === 4) {
           setTripPlanningSteps(parsed.tripPlanningSteps);
         }
         if (parsed.completed) {
@@ -898,16 +1007,73 @@ export default function TravelMissionScreen({
     );
   };
 
+  // Capture-phase dragover handler on scrollable exercise containers so child stopPropagation never blocks auto-scrolling
+  const handleContainerDragOverAutoScroll = (e: React.DragEvent<HTMLDivElement>) => {
+    dragPointerYRef.current = e.clientY;
+    const container = e.currentTarget;
+    const rect = container.getBoundingClientRect();
+    const edgeThreshold = Math.min(115, Math.max(65, rect.height * 0.24));
+    if (e.clientY < rect.top + edgeThreshold) {
+      const ratio = Math.min(1.5, Math.max(0.25, (rect.top + edgeThreshold - e.clientY) / edgeThreshold));
+      container.scrollTop -= Math.max(4, Math.round(ratio * 14));
+    } else if (e.clientY > rect.bottom - edgeThreshold) {
+      const ratio = Math.min(1.5, Math.max(0.25, (e.clientY - (rect.bottom - edgeThreshold)) / edgeThreshold));
+      container.scrollTop += Math.max(4, Math.round(ratio * 14));
+    }
+  };
+
+  // Sticky top/bottom auto-scroll guide bars shown while dragging a card inside an exercise modal
+  const renderDragAutoScrollEdgeZone = (direction: 'up' | 'down') => {
+    if (!isAnyExerciseDragging) return null;
+    const isUp = direction === 'up';
+    return (
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          dragPointerYRef.current = e.clientY;
+          dragAutoScrollDirRef.current = direction;
+          if (exerciseScrollContainerRef.current) {
+            exerciseScrollContainerRef.current.scrollTop += isUp ? -16 : 16;
+          }
+        }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          dragAutoScrollDirRef.current = direction;
+        }}
+        onDragLeave={() => {
+          if (dragAutoScrollDirRef.current === direction) {
+            dragAutoScrollDirRef.current = null;
+          }
+        }}
+        onDrop={() => {
+          dragAutoScrollDirRef.current = null;
+        }}
+        className={`sticky ${
+          isUp ? 'top-0 mb-2' : 'bottom-0 mt-2'
+        } z-30 py-1.5 px-3 rounded-xl bg-cyan-950/95 border border-cyan-400/80 text-cyan-200 text-[11px] font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.35)] backdrop-blur-md select-none transition-all`}
+      >
+        <span>{isUp ? '🔼' : '🔽'}</span>
+        <span>
+          {isUp
+            ? 'ลากการ์ดมาแตะแถบนี้ (หรือหมุนลูกกลิ้งเมาส์) เพื่อเลื่อนหน้าจอขึ้นอัตโนมัติ'
+            : 'ลากการ์ดมาแตะแถบนี้ (หรือหมุนลูกกลิ้งเมาส์) เพื่อเลื่อนหน้าจอลงอัตโนมัติ'}
+        </span>
+        <span>{isUp ? '🔼' : '🔽'}</span>
+      </div>
+    );
+  };
+
   // Reset exercise state for the current level (used when hearts reach 0 or replaying level)
   const resetCurrentLevelExerciseState = () => {
     if (currentLevelId === 1) {
       setScienceProjectSteps(['', '', '', '']);
       setTripPlanningSteps(['', '', '', '']);
+      setActiveDecompCategory('science');
       setExerciseCompleted(false);
       setExerciseError(null);
       setLevel1LearningStep(null);
       try {
-        sessionStorage.removeItem('ct_level1_decomposition_answers');
+        sessionStorage.removeItem('ct_level1_decomposition_answers_v2');
       } catch (e) {}
     } else if (currentLevelId === 2) {
       setPatternAnswers({
@@ -1918,184 +2084,386 @@ export default function TravelMissionScreen({
               initial={{ scale: 0.9, opacity: 0, y: 25 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 25 }}
-              className="bg-slate-900 border-2 border-cyan-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(6,182,212,0.3)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
+              className="bg-slate-900 border-2 border-cyan-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(6,182,212,0.3)] relative my-auto max-h-[90vh] flex flex-col overflow-hidden"
               id="level1-knowledge-modal"
             >
-              {/* Top Mission Accomplished Badge */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-4">
-                <CheckCircle2 size={15} className="text-emerald-400" />
-                <span>ภารกิจการเดินทางด่านที่ 1 สำเร็จ! · ส่วนความรู้ก่อนทำแบบฝึกหัด</span>
-              </div>
-
-              {/* Knowledge Title */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.5)] shrink-0">
-                  <Layers size={26} />
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide">
-                    การแยกย่อยปัญหาคืออะไร?
-                  </h3>
-                  <span className="text-xs font-mono text-cyan-300">
-                    องค์ประกอบที่ 1 ของแนวคิดเชิงคำนวณ: การแยกย่อยปัญหา (Decomposition)
-                  </span>
-                </div>
-              </div>
-
-              {/* Definition Box */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/90 border border-cyan-500/40 mb-5 shadow-inner">
-                <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-medium">
-                  คือ <strong className="text-cyan-300">การแบ่งปัญหาหรืองานใหญ่ ๆ ออกเป็นส่วนย่อย ๆ ที่เล็กลง</strong> เพื่อให้เข้าใจง่าย จัดการได้สะดวก และแก้ไขได้อย่างมีประสิทธิภาพ
-                </p>
-              </div>
-
-              {/* Example Section: จัดงานวันเกิด */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-900 border border-amber-500/40 mb-6">
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                  <span className="text-xs sm:text-sm font-extrabold text-amber-300 flex items-center gap-1.5">
-                    <Sparkles size={16} className="text-amber-400" />
-                    ตัวอย่างการย่อยปัญหา
-                  </span>
-                  <span className="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1 rounded-lg border border-slate-700">
-                    ปัญหาใหญ่ : 🎂 จัดงานวันเกิด
-                  </span>
+              {/* Scrollable Knowledge Content */}
+              <div className="flex-1 min-h-0 overflow-y-auto drag-scroll-container pr-1.5">
+                {/* Top Mission Accomplished Badge */}
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-3.5">
+                  <CheckCircle2 size={15} className="text-emerald-400" />
+                  <span>ภารกิจการเดินทางด่านที่ 1 สำเร็จ! · ส่วนความรู้ก่อนทำแบบฝึกหัด</span>
                 </div>
 
-                {/* Visual Diagram of Decomposed Steps */}
-                <div className="flex flex-col items-center mb-2">
-                  <div className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-black text-sm shadow-[0_0_15px_rgba(245,158,11,0.4)] mb-3">
-                    🎂 จัดงานวันเกิด
+                {/* Knowledge Title */}
+                <div className="flex items-center gap-3 mb-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.5)] shrink-0">
+                    <Layers size={26} />
                   </div>
-                  <div className="text-xs text-amber-300/90 mb-2 font-mono">
-                    ⬇️ แบ่งออกเป็นส่วนย่อย ๆ ได้ดังนี้ ⬇️
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 w-full">
-                    {[
-                      { step: 1, icon: '📅', text: 'กำหนดวัน-เวลา' },
-                      { step: 2, icon: '📝', text: 'ทำรายชื่อแขก' },
-                      { step: 3, icon: '🍹', text: 'เตรียมอาหารและเครื่องดื่ม' },
-                      { step: 4, icon: '🎈', text: 'จัดสถานที่และตกแต่ง' },
-                      { step: 5, icon: '✅', text: 'ตรวจสอบความพร้อม' },
-                    ].map((item) => (
-                      <div
-                        key={item.step}
-                        className="p-2.5 rounded-xl bg-slate-900/95 border border-amber-500/30 flex sm:flex-col items-center justify-start sm:justify-center gap-2 sm:text-center shadow-sm"
-                      >
-                        <span className="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400/60 text-amber-300 font-mono font-bold text-xs flex items-center justify-center shrink-0">
-                          {item.step}
-                        </span>
-                        <span className="text-base shrink-0">{item.icon}</span>
-                        <span className="text-xs font-bold text-slate-100 leading-snug">
-                          {item.text}
-                        </span>
-                      </div>
-                    ))}
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide">
+                      การแยกย่อยปัญหาคืออะไร?
+                    </h3>
+                    <span className="text-xs font-mono text-cyan-300">
+                      องค์ประกอบที่ 1 ของแนวคิดเชิงคำนวณ: การแยกย่อยปัญหา (Decomposition)
+                    </span>
                   </div>
                 </div>
+
+                {/* Definition Box */}
+                <div className="p-4 rounded-2xl bg-slate-950/90 border border-cyan-500/40 mb-4 shadow-inner">
+                  <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-medium">
+                    คือ <strong className="text-cyan-300">การแบ่งปัญหาหรืองานใหญ่ ๆ ออกเป็นส่วนย่อย ๆ ที่เล็กลง</strong> เพื่อให้เข้าใจง่าย จัดการได้สะดวก และแก้ไขได้อย่างมีประสิทธิภาพ
+                  </p>
+                </div>
+
+                {/* Example Section: จัดงานวันเกิด */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-900 border border-amber-500/40 mb-1">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                    <span className="text-xs sm:text-sm font-extrabold text-amber-300 flex items-center gap-1.5">
+                      <Sparkles size={16} className="text-amber-400" />
+                      ตัวอย่างการย่อยปัญหา
+                    </span>
+                    <span className="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1 rounded-lg border border-slate-700">
+                      ปัญหาใหญ่ : 🎂 จัดงานวันเกิด
+                    </span>
+                  </div>
+
+                  {/* Visual Diagram of Decomposed Steps */}
+                  <div className="flex flex-col items-center">
+                    <div className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-black text-sm shadow-[0_0_15px_rgba(245,158,11,0.4)] mb-2.5">
+                      🎂 จัดงานวันเกิด
+                    </div>
+                    <div className="text-xs text-amber-300/90 mb-2 font-mono">
+                      ⬇️ แบ่งออกเป็นส่วนย่อย ๆ ได้ดังนี้ ⬇️
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 w-full">
+                      {[
+                        { step: 1, icon: '📅', text: 'กำหนดวัน-เวลา' },
+                        { step: 2, icon: '📝', text: 'ทำรายชื่อแขก' },
+                        { step: 3, icon: '🍹', text: 'เตรียมอาหารและเครื่องดื่ม' },
+                        { step: 4, icon: '🎈', text: 'จัดสถานที่และตกแต่ง' },
+                        { step: 5, icon: '✅', text: 'ตรวจสอบความพร้อม' },
+                      ].map((item) => (
+                        <div
+                          key={item.step}
+                          className="p-2.5 rounded-xl bg-slate-900/95 border border-amber-500/30 flex sm:flex-col items-center justify-start sm:justify-center gap-2 sm:text-center shadow-sm"
+                        >
+                          <span className="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400/60 text-amber-300 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                            {item.step}
+                          </span>
+                          <span className="text-base shrink-0">{item.icon}</span>
+                          <span className="text-xs font-bold text-slate-100 leading-snug">
+                            {item.text}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Button to Enter Decomposition Exercise */}
-              <button
-                onClick={() => {
-                  audioSynth.playSfx('click');
-                  setExerciseError(null);
-                  setLevel1LearningStep('exercise');
-                }}
-                className="w-full py-4 px-6 bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-black text-base sm:text-lg tracking-wide rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(6,182,212,0.4)] flex items-center justify-center gap-2 cursor-pointer"
-                id="enter-decomposition-exercise-btn"
-              >
-                <span>เข้าสู่แบบฝึกหัด การย่อยปัญหา (Decomposition)</span>
-                <ArrowRight size={20} />
-              </button>
+              {/* Dedicated Footer Area for Button to Enter Decomposition Exercise */}
+              <div className="pt-3.5 mt-3 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioSynth.playSfx('click');
+                    setExerciseError(null);
+                    setLevel1LearningStep('exercise');
+                  }}
+                  className="w-full py-3.5 px-6 bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-black text-base sm:text-lg tracking-wide rounded-2xl transition-all duration-300 active:scale-95 shadow-[0_0_20px_rgba(6,182,212,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+                  id="enter-decomposition-exercise-btn"
+                >
+                  <span>เข้าสู่แบบฝึกหัด การย่อยปัญหา (Decomposition)</span>
+                  <ArrowRight size={20} />
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
 
         {level1LearningStep === 'exercise' && (() => {
-          const SCIENCE_KEYWORDS = [
-            'หัวข้อ', 'ปัญหา', 'เรื่อง', 'ชื่อ', 'ศึกษา', 'ค้นคว้า', 'ข้อมูล', 'สำรวจ', 'คำถาม', 'วัตถุประสงค์', 'จุดประสงค์', 'เป้าหมาย',
-            'สมมติฐาน', 'วางแผน', 'ออกแบบ', 'กำหนด', 'เตรียม', 'จัดหา', 'ซื้อ', 'อุปกรณ์', 'วัสดุ', 'เครื่องมือ', 'ตัวแปร', 'แบ่งหน้าที่', 'แบ่งงาน', 'กลุ่ม', 'ปรึกษา', 'ครู',
-            'ทดลอง', 'ปฏิบัติ', 'ลงมือ', 'โครงงาน', 'สร้าง', 'ประดิษฐ์', 'ทำ', 'ทดสอบ', 'บันทึก', 'เก็บผล', 'สังเกต', 'รวบรวม', 'วัดผล',
-            'สรุป', 'วิเคราะห์', 'อภิปราย', 'ตรวจสอบ', 'แก้ไข', 'รายงาน', 'เล่ม', 'นำเสนอ', 'พรีเซนต์', 'เผยแพร่', 'ประเมิน', 'ผล', 'จัดบอร์ด'
+          const DECOMPOSITION_CARDS: {
+            id: string;
+            text: string;
+            icon: string;
+            category: 'science' | 'trip' | 'distractor';
+            wrongReason: string;
+          }[] = [
+            {
+              id: 'sc_1',
+              text: 'กำหนดหัวข้อปัญหาและตั้งสมมติฐาน',
+              icon: '🎯',
+              category: 'science',
+              wrongReason: 'วางสลับหมวดหมู่! การตั้งสมมติฐานเป็นส่วนย่อยของ "การทำโครงงานวิทยาศาสตร์" ไม่ใช่การวางแผนท่องเที่ยว',
+            },
+            {
+              id: 'tr_1',
+              text: 'เลือกสถานที่ท่องเที่ยวและกำหนดวัน-เวลาเดินทาง',
+              icon: '📅',
+              category: 'trip',
+              wrongReason: 'วางสลับหมวดหมู่! การเลือกสถานที่เที่ยวและวันเดินทางเป็นส่วนย่อยของ "การวางแผนท่องเที่ยวกับเพื่อน"',
+            },
+            {
+              id: 'ds_1',
+              text: 'ทำโครงงานทั้งหมดคนเดียวให้เสร็จในรวดเดียวโดยไม่แบ่งขั้นตอน',
+              icon: '🚫',
+              category: 'distractor',
+              wrongReason: 'การ์ดตัวลวง! การรวบงานใหญ่ทำทีเดียวโดยไม่แบ่งเป็นขั้นตอนย่อย ไม่ใช่หลักการย่อยปัญหา (Decomposition)',
+            },
+            {
+              id: 'sc_2',
+              text: 'ค้นคว้าข้อมูลและเตรียมวัสดุอุปกรณ์ทดลอง',
+              icon: '🧪',
+              category: 'science',
+              wrongReason: 'วางสลับหมวดหมู่! การเตรียมวัสดุอุปกรณ์ทดลองเป็นส่วนย่อยของ "การทำโครงงานวิทยาศาสตร์"',
+            },
+            {
+              id: 'tr_2',
+              text: 'สำรวจจำนวนเพื่อนร่วมทริปและคำนวณงบประมาณ',
+              icon: '💰',
+              category: 'trip',
+              wrongReason: 'วางสลับหมวดหมู่! การสำรวจเพื่อนร่วมทริปและงบประมาณเป็นส่วนย่อยของ "การวางแผนท่องเที่ยวกับเพื่อน"',
+            },
+            {
+              id: 'ds_2',
+              text: 'ออกเดินทางไปเที่ยวทันทีโดยไม่ต้องวางแผนหรือนัดหมายล่วงหน้า',
+              icon: '🚫',
+              category: 'distractor',
+              wrongReason: 'การ์ดตัวลวง! การเดินทางโดยไม่แบ่งส่วนย่อยเพื่อวางแผนล่วงหน้า ขาดการใช้ทักษะการย่อยปัญหา',
+            },
+            {
+              id: 'tr_3',
+              text: 'จองที่พักและวางแผนยานพาหนะการเดินทาง',
+              icon: '🚌',
+              category: 'trip',
+              wrongReason: 'วางสลับหมวดหมู่! การจองที่พักและวางแผนยานพาหนะเป็นส่วนย่อยของ "การวางแผนท่องเที่ยวกับเพื่อน"',
+            },
+            {
+              id: 'sc_3',
+              text: 'ลงมือทำการทดลองและบันทึกผลการทดลอง',
+              icon: '📝',
+              category: 'science',
+              wrongReason: 'วางสลับหมวดหมู่! การลงมือทดลองและบันทึกผลเป็นส่วนย่อยของ "การทำโครงงานวิทยาศาสตร์"',
+            },
+            {
+              id: 'ds_3',
+              text: 'เลือกจำเฉพาะสีปกสมุดรายงานโดยไม่สนใจขั้นตอนการทดลอง',
+              icon: '🚫',
+              category: 'distractor',
+              wrongReason: 'การ์ดตัวลวง! สีปกสมุดเป็นเพียงรายละเอียดปลีกย่อย ไม่ใช่องค์ประกอบหลักของการย่อยปัญหาโครงงานวิทยาศาสตร์',
+            },
+            {
+              id: 'sc_4',
+              text: 'วิเคราะห์สรุปผลและจัดทำเล่มรายงานนำเสนอ',
+              icon: '📊',
+              category: 'science',
+              wrongReason: 'วางสลับหมวดหมู่! การวิเคราะห์สรุปผลและทำเล่มรายงานเป็นส่วนย่อยของ "การทำโครงงานวิทยาศาสตร์"',
+            },
+            {
+              id: 'tr_4',
+              text: 'จัดกระเป๋าสัมภาระและตรวจสอบความพร้อมก่อนออกเดินทาง',
+              icon: '🎒',
+              category: 'trip',
+              wrongReason: 'วางสลับหมวดหมู่! การจัดกระเป๋าสัมภาระก่อนเดินทางเป็นส่วนย่อยของ "การวางแผนท่องเที่ยวกับเพื่อน"',
+            },
+            {
+              id: 'ds_4',
+              text: 'รอให้เพื่อนจัดการเรื่องเที่ยวทุกอย่างทั้งหมดโดยไม่ช่วยแยกงาน',
+              icon: '🚫',
+              category: 'distractor',
+              wrongReason: 'การ์ดตัวลวง! การปล่อยให้เพื่อนทำทั้งหมดโดยไม่แบ่งแยกภารกิจย่อยช่วยกัน ไม่ใช่การย่อยปัญหาที่มีประสิทธิภาพ',
+            },
           ];
 
-          const TRIP_KEYWORDS = [
-            'สถานที่', 'ที่เที่ยว', 'จังหวัด', 'ทะเล', 'ภูเขา', 'น้ำตก', 'ค่าย', 'วัน', 'เวลา', 'กำหนดการ', 'ตาราง', 'ตกลง', 'คุย', 'ปรึกษา', 'เลือก', 'วางแผน', 'กำหนด', 'หาข้อมูล',
-            'เพื่อน', 'สมาชิก', 'รายชื่อ', 'คน', 'ชวน', 'งบ', 'เงิน', 'ค่าใช้จ่าย', 'หาร', 'สำรวจ', 'รวบรวม',
-            'จอง', 'ที่พัก', 'โรงแรม', 'รีสอร์ท', 'เต็นท์', 'บ้านพัก', 'เดินทาง', 'รถ', 'ตั๋ว', 'เครื่องบิน', 'รถไฟ', 'เส้นทาง', 'แผนที่', 'อาหาร', 'กิน', 'ร้าน', 'กิจกรรม', 'เที่ยว',
-            'สัมภาระ', 'กระเป๋า', 'เสื้อผ้า', 'ของใช้', 'ยา', 'เตรียม', 'จัดของ', 'ตรวจสอบ', 'เช็ค', 'ความพร้อม', 'นัดหมาย', 'นัด', 'ออกเดินทาง'
-          ];
-
-          const evaluateStep = (text: string, allSteps: string[], idx: number, keywords: string[], topicType: 'science' | 'trip') => {
-            const cleaned = text.replace(/[\.\s\-_0-9]/g, '').trim();
-            if (!text.trim()) {
-              return { valid: false, status: 'empty' as const, reason: 'ยังไม่ได้กรอกข้อมูล' };
+          const evaluateDecompSlot = (text: string, expectedCategory: 'science' | 'trip') => {
+            if (!text || !text.trim()) {
+              return { valid: false, status: 'empty' as const, reason: 'ยังไม่ได้เลือกการ์ดส่วนย่อย', icon: '➕' };
             }
-            if (cleaned.length < 4 || /(.)\1{3,}/.test(cleaned)) {
+            const card = DECOMPOSITION_CARDS.find(c => c.text === text);
+            if (!card) {
+              return { valid: false, status: 'empty' as const, reason: 'ยังไม่ได้เลือกการ์ดส่วนย่อย', icon: '➕' };
+            }
+            if (card.category === expectedCategory) {
               return {
-                valid: false,
-                status: 'invalid' as const,
-                reason: 'ข้อความสั้นเกินไป แนะนำให้เขียนอธิบายเป็นขั้นตอนการทำงานที่ชัดเจน (เช่น กริยา + สิ่งที่ทำ)',
+                valid: true,
+                status: 'valid' as const,
+                reason: 'ถูกต้อง! เป็นส่วนย่อยของปัญหานี้',
+                icon: card.icon,
               };
             }
-            const isDuplicate = allSteps.some(
-              (other, otherIdx) => otherIdx !== idx && other.trim() === text.trim()
-            );
-            if (isDuplicate) {
-              return {
-                valid: false,
-                status: 'invalid' as const,
-                reason: 'ขั้นตอนนี้ซ้ำกับข้ออื่น แนะนำให้แยกเป็นขั้นตอนย่อยอื่นที่แตกต่างกันในงานนี้',
-              };
-            }
-            const hasKeyword = keywords.some(kw => text.includes(kw));
-            if (!hasKeyword) {
-              return {
-                valid: false,
-                status: 'invalid' as const,
-                reason:
-                  topicType === 'science'
-                    ? 'คำตอบยังไม่สอดคล้อง — แนะนำให้ลองนึกถึงลำดับตั้งแต่การคิดหัวข้อ การเตรียมการ การลงมือปฏิบัติ ไปจนถึงการสรุปผล'
-                    : 'คำตอบยังไม่สอดคล้อง — แนะนำให้ลองนึกถึงสิ่งที่ต้องตกลงกับเพื่อน การเตรียมการเรื่องค่าใช้จ่าย การเดินทาง หรือการจัดของ',
-              };
-            }
-            return { valid: true, status: 'valid' as const, reason: 'ถูกต้องตามหลักการย่อยปัญหา' };
+            return {
+              valid: false,
+              status: 'invalid' as const,
+              reason: card.wrongReason,
+              icon: card.icon,
+            };
           };
 
-          const scienceResults = scienceProjectSteps.map((s, idx) =>
-            evaluateStep(s, scienceProjectSteps, idx, SCIENCE_KEYWORDS, 'science')
-          );
-          const tripResults = tripPlanningSteps.map((s, idx) =>
-            evaluateStep(s, tripPlanningSteps, idx, TRIP_KEYWORDS, 'trip')
-          );
+          const scienceResults = scienceProjectSteps.map(s => evaluateDecompSlot(s, 'science'));
+          const tripResults = tripPlanningSteps.map(s => evaluateDecompSlot(s, 'trip'));
 
           const validScienceCount = scienceResults.filter(r => r.valid).length;
           const validTripCount = tripResults.filter(r => r.valid).length;
+          const hasAnyInvalidScience = scienceResults.some(r => r.status === 'invalid');
+          const hasAnyInvalidTrip = tripResults.some(r => r.status === 'invalid');
+
+          const usedCardsSet = new Set(
+            [...scienceProjectSteps, ...tripPlanningSteps].filter(Boolean)
+          );
+
+          const handlePlaceDecompCard = (
+            targetCategory: 'science' | 'trip',
+            targetSlotIdx: number,
+            cardText: string,
+            fromCategory?: 'science' | 'trip',
+            fromSlotIdx?: number
+          ) => {
+            const cardObj = DECOMPOSITION_CARDS.find(c => c.text === cardText);
+            if (!cardObj) return;
+
+            const isCorrectForTarget = cardObj.category === targetCategory;
+            audioSynth.playSfx(isCorrectForTarget ? 'click' : 'wrong');
+
+            // Deduct heart if placing an invalid card (distractor or wrong category)
+            const isSameSlotMove = fromCategory === targetCategory && fromSlotIdx === targetSlotIdx;
+            if (!isCorrectForTarget && !isSameSlotMove) {
+              deductExerciseHeart();
+            }
+
+            setExerciseError(null);
+            setActiveDecompCategory(targetCategory);
+
+            const nextScience = [...scienceProjectSteps];
+            const nextTrip = [...tripPlanningSteps];
+
+            // Remove from previous slot if moved from an existing slot
+            if (fromCategory === 'science' && fromSlotIdx !== undefined) {
+              nextScience[fromSlotIdx] = '';
+            } else if (fromCategory === 'trip' && fromSlotIdx !== undefined) {
+              nextTrip[fromSlotIdx] = '';
+            } else {
+              // Ensure card is not duplicated anywhere else
+              const exSc = nextScience.findIndex(v => v === cardText);
+              if (exSc !== -1) nextScience[exSc] = '';
+              const exTr = nextTrip.findIndex(v => v === cardText);
+              if (exTr !== -1) nextTrip[exTr] = '';
+            }
+
+            // Swap if target slot already had a card and we dragged from another slot
+            const targetArr = targetCategory === 'science' ? nextScience : nextTrip;
+            const existingInTarget = targetArr[targetSlotIdx];
+            targetArr[targetSlotIdx] = cardText;
+
+            if (existingInTarget && fromCategory && fromSlotIdx !== undefined && !isSameSlotMove) {
+              if (fromCategory === 'science') {
+                nextScience[fromSlotIdx] = existingInTarget;
+              } else {
+                nextTrip[fromSlotIdx] = existingInTarget;
+              }
+            }
+
+            setScienceProjectSteps(nextScience);
+            setTripPlanningSteps(nextTrip);
+
+            // Auto-switch active target box if current box is now completely filled
+            if (targetCategory === 'science' && nextScience.every(Boolean) && nextTrip.some(s => !s)) {
+              setActiveDecompCategory('trip');
+            } else if (targetCategory === 'trip' && nextTrip.every(Boolean) && nextScience.some(s => !s)) {
+              setActiveDecompCategory('science');
+            }
+          };
+
+          const handleDropOnDecompBox = (
+            targetCategory: 'science' | 'trip',
+            cardText: string,
+            fromCategory?: 'science' | 'trip',
+            fromSlotIdx?: number
+          ) => {
+            const targetArr = targetCategory === 'science' ? scienceProjectSteps : tripPlanningSteps;
+            const firstEmptyIdx = targetArr.findIndex(s => !s);
+            const slotToUse = firstEmptyIdx !== -1 ? firstEmptyIdx : 3;
+            handlePlaceDecompCard(targetCategory, slotToUse, cardText, fromCategory, fromSlotIdx);
+          };
+
+          const handleQuickClickDecompCard = (cardText: string) => {
+            const primaryArr = activeDecompCategory === 'science' ? scienceProjectSteps : tripPlanningSteps;
+            const firstEmptyPrimary = primaryArr.findIndex(s => !s);
+            if (firstEmptyPrimary !== -1) {
+              handlePlaceDecompCard(activeDecompCategory, firstEmptyPrimary, cardText);
+              return;
+            }
+            const secondaryCat = activeDecompCategory === 'science' ? 'trip' : 'science';
+            const secondaryArr = secondaryCat === 'science' ? scienceProjectSteps : tripPlanningSteps;
+            const firstEmptySecondary = secondaryArr.findIndex(s => !s);
+            if (firstEmptySecondary !== -1) {
+              handlePlaceDecompCard(secondaryCat, firstEmptySecondary, cardText);
+              return;
+            }
+            // Both full: replace last slot of active category
+            handlePlaceDecompCard(activeDecompCategory, 3, cardText);
+          };
+
+          const handleRemoveDecompSlot = (category: 'science' | 'trip', slotIdx: number) => {
+            audioSynth.playSfx('click');
+            setExerciseError(null);
+            if (category === 'science') {
+              setScienceProjectSteps(prev => {
+                const updated = [...prev];
+                updated[slotIdx] = '';
+                return updated;
+              });
+              setActiveDecompCategory('science');
+            } else {
+              setTripPlanningSteps(prev => {
+                const updated = [...prev];
+                updated[slotIdx] = '';
+                return updated;
+              });
+              setActiveDecompCategory('trip');
+            }
+          };
+
+          const wrongPlacedReasons: string[] = [];
+          scienceResults.forEach((r, idx) => {
+            if (r.status === 'invalid') {
+              wrongPlacedReasons.push(`โครงงานวิทย์ ช่องที่ ${idx + 1}: ${r.reason}`);
+            }
+          });
+          tripResults.forEach((r, idx) => {
+            if (r.status === 'invalid') {
+              wrongPlacedReasons.push(`วางแผนท่องเที่ยว ช่องที่ ${idx + 1}: ${r.reason}`);
+            }
+          });
 
           return (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto"
+              className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto"
             >
               <motion.div
                 initial={{ scale: 0.92, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.92, opacity: 0, y: 20 }}
-                className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-5xl w-full p-4 sm:p-5 shadow-[0_0_50px_rgba(245,158,11,0.25)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
+                className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-6xl w-full p-4 sm:p-5 shadow-[0_0_50px_rgba(245,158,11,0.25)] relative my-auto max-h-[95vh] flex flex-col overflow-hidden"
                 id="level1-exercise-modal"
               >
                 {/* Header */}
-                <div className="flex items-start justify-between gap-3 pb-3.5 border-b border-slate-800 shrink-0 flex-wrap">
+                <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800 shrink-0 flex-wrap">
                   <div>
-                    <div className="inline-flex items-center gap-1.5 text-xs font-mono text-amber-300 bg-amber-950/70 border border-amber-500/40 px-2.5 py-0.5 rounded-md mb-1.5">
+                    <div className="inline-flex items-center gap-1.5 text-xs font-mono text-amber-300 bg-amber-950/70 border border-amber-500/40 px-2.5 py-0.5 rounded-md mb-1">
                       <Layers size={13} />
                       <span>แบบฝึกหัดท้ายด่านที่ 1 : การย่อยปัญหา (Decomposition)</span>
                     </div>
-                    <h3 className="text-base sm:text-xl font-black text-white leading-snug">
-                      1. ให้นักเรียนย่อยปัญหาต่อไปนี้ออกเป็นส่วนย่อย ๆ (อย่างน้อย 4 ขั้นตอน)
+                    <h3 className="text-base sm:text-lg font-black text-white leading-snug">
+                      1. คัดแยกและจัดหมวดหมู่ "ส่วนย่อยของปัญหา" ลงในกล่องของแต่ละภารกิจให้ถูกต้อง (ภารกิจละ 4 ส่วนย่อย)
                     </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      💡 สามารถ <strong className="text-cyan-300">ลากการ์ด (Drag & Drop)</strong> ไปวางในกล่องภารกิจ หรือ <strong className="text-amber-300">เลือกกล่องเป้าหมายแล้วคลิกที่การ์ด</strong> เพื่อเติมลงช่องว่าง (ระวังการ์ดตัวลวง 4 ใบ!)
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {renderExerciseHeartsHUD()}
@@ -2113,76 +2481,178 @@ export default function TravelMissionScreen({
                 </div>
 
                 {/* Scrollable Exercise Body */}
-                <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  ref={exerciseScrollContainerRef}
+                  onDragOverCapture={handleContainerDragOverAutoScroll}
+                  className="flex-1 overflow-y-scroll drag-scroll-container mt-3 pr-2 space-y-3.5"
+                >
+                  {renderDragAutoScrollEdgeZone('up')}
+                  {/* Two Problem Drop Zones */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
                     {/* Problem 1: การทำโครงงานวิทยาศาสตร์ */}
-                    <div className="p-4 rounded-2xl bg-slate-950/90 border border-cyan-500/40 flex flex-col justify-between">
+                    <div
+                      onClick={() => setActiveDecompCategory('science')}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverDecompTarget({ category: 'science', slotIdx: 'box' });
+                      }}
+                      onDragLeave={() => setDragOverDecompTarget(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverDecompTarget(null);
+                        if (draggingDecompItem) {
+                          handleDropOnDecompBox(
+                            'science',
+                            draggingDecompItem.value,
+                            draggingDecompItem.fromCategory,
+                            draggingDecompItem.fromSlotIdx
+                          );
+                          setDraggingDecompItem(null);
+                        }
+                      }}
+                      className={`p-3.5 rounded-2xl bg-slate-950/90 border-2 transition-all flex flex-col justify-between cursor-pointer ${
+                        dragOverDecompTarget?.category === 'science'
+                          ? 'border-cyan-400 bg-cyan-950/30 shadow-[0_0_20px_rgba(6,182,212,0.25)]'
+                          : validScienceCount === 4 && !hasAnyInvalidScience
+                          ? 'border-emerald-500/70 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                          : hasAnyInvalidScience
+                          ? 'border-rose-500/70'
+                          : activeDecompCategory === 'science'
+                          ? 'border-cyan-400/80 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+                          : 'border-slate-800 hover:border-cyan-500/40'
+                      }`}
+                      id="decomp-box-science"
+                    >
                       <div>
-                        <div className="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-800">
+                        <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-800">
                           <div className="flex items-center gap-2">
                             <span className="text-xl">🔬</span>
-                            <h4 className="text-sm sm:text-base font-extrabold text-cyan-300">
-                              ปัญหา : การทำโครงงานวิทยาศาสตร์
-                            </h4>
+                            <div>
+                              <h4 className="text-sm sm:text-base font-extrabold text-cyan-300">
+                                ปัญหาที่ 1 : การทำโครงงานวิทยาศาสตร์
+                              </h4>
+                              <span className="text-[11px] text-slate-400">
+                                {activeDecompCategory === 'science'
+                                  ? '🎯 กำลังเลือกเติมกล่องนี้ (คลิกการ์ดด้านล่างเพื่อใส่)'
+                                  : 'คลิกที่กรอบนี้เพื่อสลับมาเติมกล่องโครงงานวิทย์'}
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-[11px] font-mono text-slate-400 shrink-0">
-                            ผ่านเกณฑ์: <strong className={validScienceCount >= 4 ? 'text-emerald-400' : 'text-amber-300'}>{validScienceCount}/4</strong>
+                          <span
+                            className={`text-xs font-mono px-2.5 py-0.5 rounded-full border shrink-0 flex items-center gap-1 ${
+                              validScienceCount === 4 && !hasAnyInvalidScience
+                                ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 font-bold'
+                                : hasAnyInvalidScience
+                                ? 'bg-rose-950/80 border-rose-500/50 text-rose-300 font-bold'
+                                : 'bg-slate-900 border-slate-700 text-cyan-300'
+                            }`}
+                          >
+                            {validScienceCount === 4 ? (
+                              <>
+                                <CheckCircle2 size={12} className="text-emerald-400" />
+                                <span>ครบ 4/4 ส่วนย่อย</span>
+                              </>
+                            ) : (
+                              <span>ถูกต้อง {validScienceCount}/4</span>
+                            )}
                           </span>
                         </div>
 
-                        <div className="space-y-2.5">
+                        <div className="space-y-2">
                           {scienceProjectSteps.map((stepVal, idx) => {
                             const res = scienceResults[idx];
+                            const isSlotHovered =
+                              dragOverDecompTarget?.category === 'science' &&
+                              dragOverDecompTarget?.slotIdx === idx;
+
                             return (
                               <div key={idx} className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono font-bold text-xs sm:text-sm text-cyan-400 w-7 shrink-0">
-                                    {idx + 1} :
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={stepVal}
-                                    onChange={(e) => {
-                                      const updated = [...scienceProjectSteps];
-                                      updated[idx] = e.target.value;
-                                      setScienceProjectSteps(updated);
-                                      if (exerciseError) setExerciseError(null);
-                                    }}
-                                    placeholder="............................................................"
-                                    className={`flex-1 bg-slate-900 border rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder:text-slate-600 outline-none transition-colors ${
-                                      res.status === 'valid'
-                                        ? 'border-emerald-500/70 focus:border-emerald-400'
-                                        : res.status === 'invalid'
-                                        ? 'border-rose-500/70 focus:border-rose-400'
-                                        : 'border-slate-700 focus:border-cyan-400'
-                                    }`}
-                                  />
-                                  {res.status === 'valid' && (
-                                    <span className="text-emerald-400 shrink-0" title={res.reason}>
-                                      <CheckCircle2 size={16} />
+                                <div
+                                  draggable={Boolean(stepVal)}
+                                  onDragStart={(e) => {
+                                    e.stopPropagation();
+                                    if (stepVal) {
+                                      setDraggingDecompItem({
+                                        value: stepVal,
+                                        fromCategory: 'science',
+                                        fromSlotIdx: idx,
+                                      });
+                                    }
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggingDecompItem(null);
+                                    setDragOverDecompTarget(null);
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setDragOverDecompTarget({ category: 'science', slotIdx: idx });
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setDragOverDecompTarget(null);
+                                    if (draggingDecompItem) {
+                                      handlePlaceDecompCard(
+                                        'science',
+                                        idx,
+                                        draggingDecompItem.value,
+                                        draggingDecompItem.fromCategory,
+                                        draggingDecompItem.fromSlotIdx
+                                      );
+                                      setDraggingDecompItem(null);
+                                    }
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (stepVal) {
+                                      handleRemoveDecompSlot('science', idx);
+                                    } else {
+                                      setActiveDecompCategory('science');
+                                    }
+                                  }}
+                                  className={`px-3 py-2 rounded-xl border text-xs sm:text-sm flex items-center justify-between gap-2 transition-all ${
+                                    isSlotHovered
+                                      ? 'border-cyan-300 bg-cyan-900/40 scale-[1.01]'
+                                      : res.status === 'valid'
+                                      ? 'bg-emerald-950/40 border-emerald-500/70 text-emerald-100 font-bold'
+                                      : res.status === 'invalid'
+                                      ? 'bg-rose-950/50 border-rose-500/80 text-rose-100 font-bold'
+                                      : 'bg-slate-900/80 border-dashed border-slate-700 text-slate-500 hover:border-cyan-500/50'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="font-mono font-bold text-xs text-cyan-400 shrink-0">
+                                      ส่วนย่อยที่ {idx + 1}:
                                     </span>
-                                  )}
-                                  {res.status === 'invalid' && (
-                                    <span className="text-rose-400 shrink-0" title={res.reason}>
-                                      <AlertTriangle size={16} />
-                                    </span>
-                                  )}
-                                  {scienceProjectSteps.length > 4 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setScienceProjectSteps(prev => prev.filter((_, i) => i !== idx));
-                                      }}
-                                      className="p-1.5 text-slate-500 hover:text-rose-400 cursor-pointer"
-                                      title="ลบขั้นตอนนี้"
-                                    >
-                                      <X size={14} />
-                                    </button>
+                                    {stepVal ? (
+                                      <span className="truncate flex items-center gap-1.5">
+                                        <span>{res.icon}</span>
+                                        <span className="truncate">{stepVal}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="italic text-xs text-slate-500">
+                                        [ วางการ์ดส่วนย่อยของโครงงานวิทยาศาสตร์ที่นี่ ]
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {stepVal && (
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {res.status === 'valid' ? (
+                                        <CheckCircle2 size={15} className="text-emerald-400" />
+                                      ) : (
+                                        <AlertTriangle size={15} className="text-rose-400" />
+                                      )}
+                                      <span className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-rose-900/80 text-[10px] text-slate-300 hover:text-rose-200 font-mono">
+                                        ลบ ✕
+                                      </span>
+                                    </div>
                                   )}
                                 </div>
                                 {res.status === 'invalid' && (
-                                  <p className="text-[11px] text-rose-300 pl-9">
-                                    ⚠️ {res.reason}
+                                  <p className="text-[11px] text-rose-300 pl-2 flex items-center gap-1">
+                                    <span>⚠️ {res.reason} (คลิกที่ช่องเพื่อนำออก)</span>
                                   </p>
                                 )}
                               </div>
@@ -2190,87 +2660,172 @@ export default function TravelMissionScreen({
                           })}
                         </div>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          audioSynth.playSfx('click');
-                          setScienceProjectSteps(prev => [...prev, '']);
-                        }}
-                        className="mt-3 py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-dashed border-slate-700 text-xs font-bold text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer"
-                      >
-                        + เพิ่มขั้นตอนย่อย (ขั้นตอนที่ {scienceProjectSteps.length + 1})
-                      </button>
                     </div>
 
                     {/* Problem 2: การวางแผนท่องเที่ยวกับเพื่อน */}
-                    <div className="p-4 rounded-2xl bg-slate-950/90 border border-amber-500/40 flex flex-col justify-between">
+                    <div
+                      onClick={() => setActiveDecompCategory('trip')}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverDecompTarget({ category: 'trip', slotIdx: 'box' });
+                      }}
+                      onDragLeave={() => setDragOverDecompTarget(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverDecompTarget(null);
+                        if (draggingDecompItem) {
+                          handleDropOnDecompBox(
+                            'trip',
+                            draggingDecompItem.value,
+                            draggingDecompItem.fromCategory,
+                            draggingDecompItem.fromSlotIdx
+                          );
+                          setDraggingDecompItem(null);
+                        }
+                      }}
+                      className={`p-3.5 rounded-2xl bg-slate-950/90 border-2 transition-all flex flex-col justify-between cursor-pointer ${
+                        dragOverDecompTarget?.category === 'trip'
+                          ? 'border-amber-400 bg-amber-950/30 shadow-[0_0_20px_rgba(245,158,11,0.25)]'
+                          : validTripCount === 4 && !hasAnyInvalidTrip
+                          ? 'border-emerald-500/70 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                          : hasAnyInvalidTrip
+                          ? 'border-rose-500/70'
+                          : activeDecompCategory === 'trip'
+                          ? 'border-amber-400/80 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                          : 'border-slate-800 hover:border-amber-500/40'
+                      }`}
+                      id="decomp-box-trip"
+                    >
                       <div>
-                        <div className="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-800">
+                        <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-800">
                           <div className="flex items-center gap-2">
                             <span className="text-xl">🗺️</span>
-                            <h4 className="text-sm sm:text-base font-extrabold text-amber-300">
-                              ปัญหา : การวางแผนท่องเที่ยวกับเพื่อน
-                            </h4>
+                            <div>
+                              <h4 className="text-sm sm:text-base font-extrabold text-amber-300">
+                                ปัญหาที่ 2 : การวางแผนท่องเที่ยวกับเพื่อน
+                              </h4>
+                              <span className="text-[11px] text-slate-400">
+                                {activeDecompCategory === 'trip'
+                                  ? '🎯 กำลังเลือกเติมกล่องนี้ (คลิกการ์ดด้านล่างเพื่อใส่)'
+                                  : 'คลิกที่กรอบนี้เพื่อสลับมาเติมกล่องวางแผนท่องเที่ยว'}
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-[11px] font-mono text-slate-400 shrink-0">
-                            ผ่านเกณฑ์: <strong className={validTripCount >= 4 ? 'text-emerald-400' : 'text-amber-300'}>{validTripCount}/4</strong>
+                          <span
+                            className={`text-xs font-mono px-2.5 py-0.5 rounded-full border shrink-0 flex items-center gap-1 ${
+                              validTripCount === 4 && !hasAnyInvalidTrip
+                                ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 font-bold'
+                                : hasAnyInvalidTrip
+                                ? 'bg-rose-950/80 border-rose-500/50 text-rose-300 font-bold'
+                                : 'bg-slate-900 border-slate-700 text-amber-300'
+                            }`}
+                          >
+                            {validTripCount === 4 ? (
+                              <>
+                                <CheckCircle2 size={12} className="text-emerald-400" />
+                                <span>ครบ 4/4 ส่วนย่อย</span>
+                              </>
+                            ) : (
+                              <span>ถูกต้อง {validTripCount}/4</span>
+                            )}
                           </span>
                         </div>
 
-                        <div className="space-y-2.5">
+                        <div className="space-y-2">
                           {tripPlanningSteps.map((stepVal, idx) => {
                             const res = tripResults[idx];
+                            const isSlotHovered =
+                              dragOverDecompTarget?.category === 'trip' &&
+                              dragOverDecompTarget?.slotIdx === idx;
+
                             return (
                               <div key={idx} className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono font-bold text-xs sm:text-sm text-amber-400 w-7 shrink-0">
-                                    {idx + 1} :
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={stepVal}
-                                    onChange={(e) => {
-                                      const updated = [...tripPlanningSteps];
-                                      updated[idx] = e.target.value;
-                                      setTripPlanningSteps(updated);
-                                      if (exerciseError) setExerciseError(null);
-                                    }}
-                                    placeholder="............................................................"
-                                    className={`flex-1 bg-slate-900 border rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder:text-slate-600 outline-none transition-colors ${
-                                      res.status === 'valid'
-                                        ? 'border-emerald-500/70 focus:border-emerald-400'
-                                        : res.status === 'invalid'
-                                        ? 'border-rose-500/70 focus:border-rose-400'
-                                        : 'border-slate-700 focus:border-amber-400'
-                                    }`}
-                                  />
-                                  {res.status === 'valid' && (
-                                    <span className="text-emerald-400 shrink-0" title={res.reason}>
-                                      <CheckCircle2 size={16} />
+                                <div
+                                  draggable={Boolean(stepVal)}
+                                  onDragStart={(e) => {
+                                    e.stopPropagation();
+                                    if (stepVal) {
+                                      setDraggingDecompItem({
+                                        value: stepVal,
+                                        fromCategory: 'trip',
+                                        fromSlotIdx: idx,
+                                      });
+                                    }
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggingDecompItem(null);
+                                    setDragOverDecompTarget(null);
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setDragOverDecompTarget({ category: 'trip', slotIdx: idx });
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setDragOverDecompTarget(null);
+                                    if (draggingDecompItem) {
+                                      handlePlaceDecompCard(
+                                        'trip',
+                                        idx,
+                                        draggingDecompItem.value,
+                                        draggingDecompItem.fromCategory,
+                                        draggingDecompItem.fromSlotIdx
+                                      );
+                                      setDraggingDecompItem(null);
+                                    }
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (stepVal) {
+                                      handleRemoveDecompSlot('trip', idx);
+                                    } else {
+                                      setActiveDecompCategory('trip');
+                                    }
+                                  }}
+                                  className={`px-3 py-2 rounded-xl border text-xs sm:text-sm flex items-center justify-between gap-2 transition-all ${
+                                    isSlotHovered
+                                      ? 'border-amber-300 bg-amber-900/40 scale-[1.01]'
+                                      : res.status === 'valid'
+                                      ? 'bg-emerald-950/40 border-emerald-500/70 text-emerald-100 font-bold'
+                                      : res.status === 'invalid'
+                                      ? 'bg-rose-950/50 border-rose-500/80 text-rose-100 font-bold'
+                                      : 'bg-slate-900/80 border-dashed border-slate-700 text-slate-500 hover:border-amber-500/50'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="font-mono font-bold text-xs text-amber-400 shrink-0">
+                                      ส่วนย่อยที่ {idx + 1}:
                                     </span>
-                                  )}
-                                  {res.status === 'invalid' && (
-                                    <span className="text-rose-400 shrink-0" title={res.reason}>
-                                      <AlertTriangle size={16} />
-                                    </span>
-                                  )}
-                                  {tripPlanningSteps.length > 4 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setTripPlanningSteps(prev => prev.filter((_, i) => i !== idx));
-                                      }}
-                                      className="p-1.5 text-slate-500 hover:text-rose-400 cursor-pointer"
-                                      title="ลบขั้นตอนนี้"
-                                    >
-                                      <X size={14} />
-                                    </button>
+                                    {stepVal ? (
+                                      <span className="truncate flex items-center gap-1.5">
+                                        <span>{res.icon}</span>
+                                        <span className="truncate">{stepVal}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="italic text-xs text-slate-500">
+                                        [ วางการ์ดส่วนย่อยของการวางแผนท่องเที่ยวที่นี่ ]
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {stepVal && (
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {res.status === 'valid' ? (
+                                        <CheckCircle2 size={15} className="text-emerald-400" />
+                                      ) : (
+                                        <AlertTriangle size={15} className="text-rose-400" />
+                                      )}
+                                      <span className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-rose-900/80 text-[10px] text-slate-300 hover:text-rose-200 font-mono">
+                                        ลบ ✕
+                                      </span>
+                                    </div>
                                   )}
                                 </div>
                                 {res.status === 'invalid' && (
-                                  <p className="text-[11px] text-rose-300 pl-9">
-                                    ⚠️ {res.reason}
+                                  <p className="text-[11px] text-rose-300 pl-2 flex items-center gap-1">
+                                    <span>⚠️ {res.reason} (คลิกที่ช่องเพื่อนำออก)</span>
                                   </p>
                                 )}
                               </div>
@@ -2278,37 +2833,115 @@ export default function TravelMissionScreen({
                           })}
                         </div>
                       </div>
+                    </div>
+                  </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          audioSynth.playSfx('click');
-                          setTripPlanningSteps(prev => [...prev, '']);
-                        }}
-                        className="mt-3 py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-dashed border-slate-700 text-xs font-bold text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
-                      >
-                        + เพิ่มขั้นตอนย่อย (ขั้นตอนที่ {tripPlanningSteps.length + 1})
-                      </button>
+                  {/* Card Bank: 12 Cards (4 Science + 4 Trip + 4 Distractors) */}
+                  <div className="p-3.5 rounded-2xl bg-slate-950/95 border border-slate-800 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800/90">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs sm:text-sm font-extrabold text-white">
+                          🗂️ คลังการ์ดตัวเลือก (ลากไปวาง หรือคลิกการ์ดเพื่อเติม):
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          มี 12 ใบ (ส่วนย่อยที่ถูกต้อง 8 ใบ · ตัวลวง 4 ใบ)
+                        </span>
+                      </div>
+
+                      {/* Target Selector Buttons for Quick Click */}
+                      <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 shrink-0">
+                        <span className="text-[11px] text-slate-400 px-1.5">คลิกการ์ดเติมลง:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            audioSynth.playSfx('click');
+                            setActiveDecompCategory('science');
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            activeDecompCategory === 'science'
+                              ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                              : 'text-cyan-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          🔬 โครงงานวิทย์ ({validScienceCount}/4)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            audioSynth.playSfx('click');
+                            setActiveDecompCategory('trip');
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            activeDecompCategory === 'trip'
+                              ? 'bg-amber-400 text-slate-950 shadow-sm'
+                              : 'text-amber-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          🗺️ วางแผนเที่ยว ({validTripCount}/4)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {DECOMPOSITION_CARDS.map((card) => {
+                        const isUsed = usedCardsSet.has(card.text);
+                        return (
+                          <button
+                            key={card.id}
+                            type="button"
+                            disabled={isUsed}
+                            draggable={!isUsed}
+                            onDragStart={() => {
+                              if (!isUsed) {
+                                setDraggingDecompItem({ value: card.text });
+                              }
+                            }}
+                            onDragEnd={() => {
+                              setDraggingDecompItem(null);
+                              setDragOverDecompTarget(null);
+                            }}
+                            onClick={() => {
+                              if (!isUsed) {
+                                handleQuickClickDecompCard(card.text);
+                              }
+                            }}
+                            className={`p-2.5 rounded-xl border text-left text-xs leading-snug transition-all flex items-start gap-2 ${
+                              isUsed
+                                ? 'bg-slate-900/40 border-slate-800/60 text-slate-600 line-through cursor-not-allowed opacity-50'
+                                : 'bg-slate-900 hover:bg-slate-800/90 border-slate-700 hover:border-cyan-400/70 text-slate-100 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                            }`}
+                            id={`decomp-card-${card.id}`}
+                          >
+                            <span className="text-base shrink-0 mt-0.5">🧩</span>
+                            <span className="flex-1 font-medium">{card.text}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {renderProgressiveExerciseHintBox(
-                    '💡 คำใบ้ที่ 1 (ชวนคิด): ลองนึกดูว่าก่อนจะเริ่มลงมือทำโครงงานวิทยาศาสตร์หรือออกเดินทางท่องเที่ยวกับเพื่อน เราต้อง "วางแผน/กำหนดหัวข้อ" อะไรเป็นอันดับแรก และต้อง "เตรียมการ/สรุปผล" อย่างไรให้ครบ 4 ขั้นตอนที่ไม่ซ้ำกัน?',
-                    '🔍 คำใบ้ที่ 2 (ชี้จุดที่ผิด): ตรวจสอบช่องที่มีกรอบสีแดงหรือยังว่างอยู่ — แต่ละขั้นตอนต้องมีความยาวเหมาะสม ไม่ซ้ำกับข้ออื่น และมีคำสำคัญที่เกี่ยวข้องกับภารกิจ (เช่น โครงงาน: หัวข้อ, สมมติฐาน, อุปกรณ์, ทดลอง, สรุปผล | ท่องเที่ยว: สถานที่, งบประมาณ, จองที่พัก/รถ, จัดกระเป๋า)',
-                    '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): [โครงงานวิทยาศาสตร์] 1.กำหนดหัวข้อและปัญหา ➔ 2.ตั้งสมมติฐานและเตรียมอุปกรณ์ ➔ 3.ลงมือทดลองและบันทึกผล ➔ 4.สรุปผลและนำเสนอรายงาน | [วางแผนท่องเที่ยว] 1.เลือกสถานที่และวันเวลา ➔ 2.สำรวจสมาชิกและรวบรวมงบประมาณ ➔ 3.จองที่พักและยานพาหนะเดินทาง ➔ 4.จัดกระเป๋าสัมภาระและออกเดินทาง',
+                    '💡 คำใบ้ที่ 1 (ชวนคิด): การย่อยปัญหา (Decomposition) คือการแบ่งงานใหญ่ออกเป็นส่วนย่อย ๆ ที่ชัดเจนและนำไปปฏิบัติได้จริง ลองแยกแยะว่าการ์ดใบใดเกี่ยวกับ "การทดลอง/สมมติฐาน/รายงาน" (โครงงานวิทย์) และใบใดเกี่ยวกับ "สถานที่/งบประมาณ/ที่พัก/จัดกระเป๋า" (ท่องเที่ยว) ส่วนการ์ดที่ไม่แบ่งงานหรือทำรวดเดียวคือตัวลวง!',
+                    `🔍 คำใบ้ที่ 2 (ชี้จุดที่ผิด): ${
+                      wrongPlacedReasons.length > 0
+                        ? wrongPlacedReasons.join(' | ')
+                        : 'ตรวจสอบให้แน่ใจว่าใส่การ์ดส่วนย่อยที่ถูกต้องครบทั้ง 4 ช่องของ 🔬 โครงงานวิทยาศาสตร์ และ 4 ช่องของ 🗺️ การวางแผนท่องเที่ยวกับเพื่อน โดยไม่มีการ์ดตัวลวงปะปน'
+                    }`,
+                    '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): [🔬 โครงงานวิทยาศาสตร์ 4 ส่วนย่อย] 1.กำหนดหัวข้อปัญหาและตั้งสมมติฐาน • 2.ค้นคว้าข้อมูลและเตรียมวัสดุอุปกรณ์ทดลอง • 3.ลงมือทำการทดลองและบันทึกผลการทดลอง • 4.วิเคราะห์สรุปผลและจัดทำเล่มรายงานนำเสนอ | [🗺️ วางแผนท่องเที่ยว 4 ส่วนย่อย] 1.เลือกสถานที่ท่องเที่ยวและกำหนดวัน-เวลาเดินทาง • 2.สำรวจจำนวนเพื่อนร่วมทริปและคำนวณงบประมาณ • 3.จองที่พักและวางแผนยานพาหนะการเดินทาง • 4.จัดกระเป๋าสัมภาระและตรวจสอบความพร้อมก่อนออกเดินทาง',
                     exerciseError
                   )}
+                  {renderDragAutoScrollEdgeZone('down')}
                 </div>
 
                 {/* Footer Actions */}
-                <div className="mt-4 pt-3.5 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div className="mt-3 pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
                       audioSynth.playSfx('click');
                       setLevel1LearningStep('knowledge');
                     }}
-                    className="w-full sm:w-auto px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <ChevronLeft size={16} />
                     <span>ย้อนกลับไปหน้าต่างความรู้</span>
@@ -2317,11 +2950,16 @@ export default function TravelMissionScreen({
                   <button
                     type="button"
                     onClick={() => {
-                      if (validScienceCount < 4 || validTripCount < 4) {
+                      if (
+                        validScienceCount < 4 ||
+                        validTripCount < 4 ||
+                        hasAnyInvalidScience ||
+                        hasAnyInvalidTrip
+                      ) {
                         audioSynth.playSfx('wrong');
                         const remaining = deductExerciseHeart();
                         setExerciseError(
-                          `คำตอบยังไม่ผ่านเกณฑ์! สูญเสียหัวใจพลังชีวิต 1 ดวง (เหลือ ❤️ ${remaining}/3) — 💡 คำแนะนำ: โครงงานวิทยาศาสตร์ผ่าน ${validScienceCount}/4 และวางแผนท่องเที่ยวผ่าน ${validTripCount}/4 กรุณาปรับแก้ขั้นตอนให้มีความหมายสอดคล้องและไม่ซ้ำกัน`
+                          `ยังคัดแยกส่วนย่อยไม่ครบหรือไม่ถูกต้อง! สูญเสียหัวใจพลังชีวิต 1 ดวง (เหลือ ❤️ ${remaining}/3) — โครงงานวิทยาศาสตร์ถูกต้อง ${validScienceCount}/4 และวางแผนท่องเที่ยวถูกต้อง ${validTripCount}/4 กรุณานำการ์ดที่ขึ้นกรอบสีแดงออกแล้วเลือกการ์ดส่วนย่อยที่ถูกต้องแทน`
                         );
                         return;
                       }
@@ -2331,7 +2969,7 @@ export default function TravelMissionScreen({
                       setExerciseError(null);
                       try {
                         sessionStorage.setItem(
-                          'ct_level1_decomposition_answers',
+                          'ct_level1_decomposition_answers_v2',
                           JSON.stringify({
                             scienceProjectSteps,
                             tripPlanningSteps,
@@ -2343,11 +2981,11 @@ export default function TravelMissionScreen({
                       setLevel1LearningStep(null);
                       setShowVictoryModal(true);
                     }}
-                    className="w-full sm:flex-1 py-3.5 px-6 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-slate-950 font-black text-sm sm:text-base rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full sm:flex-1 py-3 px-6 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-slate-950 font-black text-sm sm:text-base rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 cursor-pointer"
                     id="submit-decomposition-exercise-btn"
                   >
                     <CheckCircle2 size={18} />
-                    <span>ตรวจคำตอบและผ่านด่านที่ 1 ({validScienceCount + validTripCount}/8 ขั้นตอนผ่านเกณฑ์)</span>
+                    <span>ตรวจคำตอบและผ่านด่านที่ 1 ({validScienceCount + validTripCount}/8 ส่วนย่อยถูกต้อง)</span>
                   </button>
                 </div>
               </motion.div>
@@ -2369,103 +3007,109 @@ export default function TravelMissionScreen({
               initial={{ scale: 0.9, opacity: 0, y: 25 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 25 }}
-              className="bg-slate-900 border-2 border-purple-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(168,85,247,0.3)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
+              className="bg-slate-900 border-2 border-purple-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(168,85,247,0.3)] relative my-auto max-h-[90vh] flex flex-col overflow-hidden"
               id="level2-knowledge-modal"
             >
-              {/* Top Mission Accomplished Badge */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-4">
-                <CheckCircle2 size={15} className="text-emerald-400" />
-                <span>ภารกิจการเดินทางด่านที่ 2 สำเร็จ! · ส่วนความรู้ก่อนทำแบบฝึกหัด</span>
-              </div>
-
-              {/* Knowledge Title */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-400 to-fuchsia-600 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.5)] shrink-0">
-                  <Repeat size={26} />
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide">
-                    การหารูปแบบ (Pattern Recognition) คืออะไร?
-                  </h3>
-                  <span className="text-xs font-mono text-purple-300">
-                    องค์ประกอบที่ 2 ของแนวคิดเชิงคำนวณ: การหารูปแบบ (Pattern Recognition)
-                  </span>
-                </div>
-              </div>
-
-              {/* Definition Box */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/90 border border-purple-500/40 mb-5 shadow-inner">
-                <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-medium">
-                  <strong className="text-purple-300">การหารูปแบบ</strong> คือ{' '}
-                  <strong className="text-cyan-300">
-                    การสังเกตหาความเหมือน ความสัมพันธ์ หรือแนวโน้มของข้อมูลหรือปัญหา เพื่อนำไปสู่การคาดการณ์หรือหาคำตอบในอนาคต
-                  </strong>
-                </p>
-              </div>
-
-              {/* Visual Example Section */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-purple-950/40 via-slate-950 to-slate-900 border border-purple-500/40 mb-6">
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                  <span className="text-xs sm:text-sm font-extrabold text-purple-300 flex items-center gap-1.5">
-                    <Sparkles size={16} className="text-purple-400" />
-                    ตัวอย่างการสังเกตรูปแบบและความสัมพันธ์
-                  </span>
-                  <span className="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1 rounded-lg border border-slate-700">
-                    สังเกตความเหมือน ➡️ คาดการณ์คำตอบถัดไป
-                  </span>
+              {/* Scrollable Knowledge Content */}
+              <div className="flex-1 min-h-0 overflow-y-auto drag-scroll-container pr-1.5">
+                {/* Top Mission Accomplished Badge */}
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-3.5">
+                  <CheckCircle2 size={15} className="text-emerald-400" />
+                  <span>ภารกิจการเดินทางด่านที่ 2 สำเร็จ! · ส่วนความรู้ก่อนทำแบบฝึกหัด</span>
                 </div>
 
-                <div className="space-y-3 text-xs sm:text-sm">
-                  <div className="p-3 rounded-xl bg-slate-900/95 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <span className="text-amber-300 font-bold block mb-1">🔢 รูปแบบตัวเลขที่เพิ่มขึ้นทีละเท่า ๆ กัน:</span>
-                      <div className="flex items-center gap-1.5 font-mono text-slate-200 flex-wrap">
-                        <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">10</span>
-                        <span>→</span>
-                        <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">20</span>
-                        <span>→</span>
-                        <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">30</span>
-                        <span>→</span>
-                        <span className="px-2.5 py-1 rounded bg-emerald-950 border border-emerald-400 text-emerald-300 font-bold">40</span>
-                      </div>
-                    </div>
-                    <span className="text-[11px] font-mono text-emerald-300 bg-emerald-950/50 px-2.5 py-1 rounded-lg border border-emerald-500/30 shrink-0">
-                      ความสัมพันธ์: เพิ่มขึ้นทีละ +10
-                    </span>
+                {/* Knowledge Title */}
+                <div className="flex items-center gap-3 mb-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-400 to-fuchsia-600 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.5)] shrink-0">
+                    <Repeat size={26} />
                   </div>
-
-                  <div className="p-3 rounded-xl bg-slate-900/95 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <span className="text-cyan-300 font-bold block mb-1">🎨 รูปแบบสัญลักษณ์ที่วนซ้ำเป็นชุด:</span>
-                      <div className="flex items-center gap-1.5 text-slate-200 flex-wrap">
-                        <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">⭐</span>
-                        <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">🌙</span>
-                        <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">⭐</span>
-                        <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">🌙</span>
-                        <span>→</span>
-                        <span className="px-2.5 py-1 rounded bg-emerald-950 border border-emerald-400 text-emerald-300 font-bold">⭐</span>
-                      </div>
-                    </div>
-                    <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/50 px-2.5 py-1 rounded-lg border border-cyan-500/30 shrink-0">
-                      ความสัมพันธ์: สลับ ⭐ กับ 🌙
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide">
+                      การหารูปแบบ (Pattern Recognition) คืออะไร?
+                    </h3>
+                    <span className="text-xs font-mono text-purple-300">
+                      องค์ประกอบที่ 2 ของแนวคิดเชิงคำนวณ: การหารูปแบบ (Pattern Recognition)
                     </span>
                   </div>
                 </div>
+
+                {/* Definition Box */}
+                <div className="p-4 rounded-2xl bg-slate-950/90 border border-purple-500/40 mb-4 shadow-inner">
+                  <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-medium">
+                    <strong className="text-purple-300">การหารูปแบบ</strong> คือ{' '}
+                    <strong className="text-cyan-300">
+                      การสังเกตหาความเหมือน ความสัมพันธ์ หรือแนวโน้มของข้อมูลหรือปัญหา เพื่อนำไปสู่การคาดการณ์หรือหาคำตอบในอนาคต
+                    </strong>
+                  </p>
+                </div>
+
+                {/* Visual Example Section */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-slate-950 to-slate-900 border border-purple-500/40 mb-1">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                    <span className="text-xs sm:text-sm font-extrabold text-purple-300 flex items-center gap-1.5">
+                      <Sparkles size={16} className="text-purple-400" />
+                      ตัวอย่างการสังเกตรูปแบบและความสัมพันธ์
+                    </span>
+                    <span className="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1 rounded-lg border border-slate-700">
+                      สังเกตความเหมือน ➡️ คาดการณ์คำตอบถัดไป
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 text-xs sm:text-sm">
+                    <div className="p-3 rounded-xl bg-slate-900/95 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <span className="text-amber-300 font-bold block mb-1">🔢 รูปแบบตัวเลขที่เพิ่มขึ้นทีละเท่า ๆ กัน:</span>
+                        <div className="flex items-center gap-1.5 font-mono text-slate-200 flex-wrap">
+                          <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">10</span>
+                          <span>→</span>
+                          <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">20</span>
+                          <span>→</span>
+                          <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">30</span>
+                          <span>→</span>
+                          <span className="px-2.5 py-1 rounded bg-emerald-950 border border-emerald-400 text-emerald-300 font-bold">40</span>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-mono text-emerald-300 bg-emerald-950/50 px-2.5 py-1 rounded-lg border border-emerald-500/30 shrink-0">
+                        ความสัมพันธ์: เพิ่มขึ้นทีละ +10
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-900/95 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <span className="text-cyan-300 font-bold block mb-1">🎨 รูปแบบสัญลักษณ์ที่วนซ้ำเป็นชุด:</span>
+                        <div className="flex items-center gap-1.5 text-slate-200 flex-wrap">
+                          <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">⭐</span>
+                          <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">🌙</span>
+                          <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">⭐</span>
+                          <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700">🌙</span>
+                          <span>→</span>
+                          <span className="px-2.5 py-1 rounded bg-emerald-950 border border-emerald-400 text-emerald-300 font-bold">⭐</span>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/50 px-2.5 py-1 rounded-lg border border-cyan-500/30 shrink-0">
+                        ความสัมพันธ์: สลับ ⭐ กับ 🌙
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Button to Enter Pattern Recognition Exercise */}
-              <button
-                onClick={() => {
-                  audioSynth.playSfx('click');
-                  setLevel2ExerciseError(null);
-                  setLevel2LearningStep('exercise');
-                }}
-                className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 via-fuchsia-500 to-cyan-400 hover:from-purple-400 hover:to-cyan-300 text-slate-950 font-black text-base sm:text-lg tracking-wide rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(168,85,247,0.4)] flex items-center justify-center gap-2 cursor-pointer"
-                id="enter-pattern-exercise-btn"
-              >
-                <span>เข้าสู่แบบฝึกหัด การหารูปแบบ (Pattern Recognition)</span>
-                <ArrowRight size={20} />
-              </button>
+              {/* Dedicated Footer Area for Button to Enter Pattern Recognition Exercise */}
+              <div className="pt-3.5 mt-3 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioSynth.playSfx('click');
+                    setLevel2ExerciseError(null);
+                    setLevel2LearningStep('exercise');
+                  }}
+                  className="w-full py-3.5 px-6 bg-gradient-to-r from-purple-500 via-fuchsia-500 to-cyan-400 hover:from-purple-400 hover:to-cyan-300 text-slate-950 font-black text-base sm:text-lg tracking-wide rounded-2xl transition-all duration-300 active:scale-95 shadow-[0_0_20px_rgba(168,85,247,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+                  id="enter-pattern-exercise-btn"
+                >
+                  <span>เข้าสู่แบบฝึกหัด การหารูปแบบ (Pattern Recognition)</span>
+                  <ArrowRight size={20} />
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -2657,7 +3301,12 @@ export default function TravelMissionScreen({
                 </div>
 
                 {/* 2x2 Grid Questions List on Desktop */}
-                <div className="flex-1 overflow-y-auto mt-3 pr-1">
+                <div
+                  ref={exerciseScrollContainerRef}
+                  onDragOverCapture={handleContainerDragOverAutoScroll}
+                  className="flex-1 overflow-y-scroll drag-scroll-container mt-3 pr-2"
+                >
+                  {renderDragAutoScrollEdgeZone('up')}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {PATTERN_QUESTIONS.map((q, qIdx) => {
                     const userSlots = patternAnswers[q.key];
@@ -2886,6 +3535,7 @@ export default function TravelMissionScreen({
                     '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): ข้อ 1 เพิ่มทีละ +3 (20 ➔ 23, 26, 29) | ข้อ 2 วนซ้ำ 🟡,🟩,🔺 ต่อจาก 🟡 คือ (🟩, 🔺, 🟡) | ข้อ 3 ข้ามพยัญชนะเพิ่มขึ้น +5, +6, +7 ตัว ได้ (ต, ผ, ล) | ข้อ 4 ลดลงทีละ -5 (80 ➔ 75, 70, 65)',
                     level2ExerciseError
                   )}
+                  {renderDragAutoScrollEdgeZone('down')}
                 </div>
 
                 {/* Footer Actions */}
@@ -2956,131 +3606,137 @@ export default function TravelMissionScreen({
               initial={{ scale: 0.9, opacity: 0, y: 25 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 25 }}
-              className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(245,158,11,0.3)] relative my-auto max-h-[94vh] flex flex-col overflow-hidden"
+              className="bg-slate-900 border-2 border-amber-400/70 rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(245,158,11,0.3)] relative my-auto max-h-[90vh] flex flex-col overflow-hidden"
               id="level3-knowledge-modal"
             >
-              {/* Top Mission Accomplished Badge */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-4">
-                <CheckCircle2 size={15} className="text-emerald-400" />
-                <span>ภารกิจการเดินทางด่านที่ 3 สำเร็จ! · ส่วนความรู้ก่อนทำแบบฝึกหัด</span>
-              </div>
-
-              {/* Knowledge Title */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.5)] shrink-0">
-                  <Sparkles size={26} />
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide">
-                    การคิดเชิงนามธรรม (Abstraction) คืออะไร?
-                  </h3>
-                  <span className="text-xs font-mono text-amber-300">
-                    องค์ประกอบที่ 3 ของแนวคิดเชิงคำนวณ: การคิดเชิงนามธรรม (Abstraction)
-                  </span>
-                </div>
-              </div>
-
-              {/* Definition & Goal Boxes */}
-              <div className="space-y-3 mb-5">
-                <div className="p-4 rounded-2xl bg-slate-950/90 border border-amber-500/40 shadow-inner">
-                  <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-medium">
-                    <strong className="text-amber-300">การคิดเชิงนามธรรม</strong> คือ{' '}
-                    <strong className="text-cyan-300">
-                      การมองหาสิ่งที่สำคัญจริง ๆ และตัดรายละเอียดที่ไม่จำเป็นออก เหลือเฉพาะสาระสำคัญ เพื่อให้เข้าใจและแก้ปัญหาได้ง่ายขึ้น
-                    </strong>
-                  </p>
+              {/* Scrollable Knowledge Content */}
+              <div className="flex-1 min-h-0 overflow-y-auto drag-scroll-container pr-1.5">
+                {/* Top Mission Accomplished Badge */}
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-3.5">
+                  <CheckCircle2 size={15} className="text-emerald-400" />
+                  <span>ภารกิจการเดินทางด่านที่ 3 สำเร็จ! · ส่วนความรู้ก่อนทำแบบฝึกหัด</span>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-950/90 border border-cyan-500/40">
-                  <span className="text-xs sm:text-sm font-extrabold text-cyan-300 block mb-1">
-                    🎯 เป้าหมายของการคิดเชิงนามธรรม
-                  </span>
-                  <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
-                    เพื่อโฟกัสข้อมูลที่สำคัญ ลดความซับซ้อน ทำให้เข้าใจง่าย และนำไปใช้แก้ปัญหาได้อย่างมีประสิทธิภาพ
-                  </p>
-                </div>
-              </div>
-
-              {/* Example Section */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-900 border border-amber-500/40 mb-6">
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                  <span className="text-xs sm:text-sm font-extrabold text-amber-300 flex items-center gap-1.5">
-                    <Sparkles size={16} className="text-amber-400" />
-                    ตัวอย่างการคัดเลือกข้อมูลสำคัญ
-                  </span>
-                  <span className="text-xs font-bold text-emerald-300 bg-emerald-950/70 px-3 py-1 rounded-lg border border-emerald-500/40">
-                    🎒 สิ่งของที่จำเป็นสำหรับไปโรงเรียน
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {/* Before Selection */}
-                  <div className="p-3 rounded-xl bg-slate-900/95 border border-slate-800">
-                    <span className="text-xs font-bold text-slate-400 block mb-2">
-                      ข้อมูลทั้งหมด (ก่อนคัดเลือก) :
+                {/* Knowledge Title */}
+                <div className="flex items-center gap-3 mb-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.5)] shrink-0">
+                    <Sparkles size={26} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide">
+                      การคิดเชิงนามธรรม (Abstraction) คืออะไร?
+                    </h3>
+                    <span className="text-xs font-mono text-amber-300">
+                      องค์ประกอบที่ 3 ของแนวคิดเชิงคำนวณ: การคิดเชิงนามธรรม (Abstraction)
                     </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { name: 'กระเป๋านักเรียน', keep: true },
-                        { name: 'โดนัท', keep: false },
-                        { name: 'ดินสอ', keep: true },
-                        { name: 'นาฬิกา', keep: false },
-                        { name: 'จอยเกม', keep: false },
-                        { name: 'หูฟัง', keep: false },
-                        { name: 'ขวดน้ำ', keep: true },
-                        { name: 'สมุด', keep: true },
-                      ].map((item) => (
-                        <span
-                          key={item.name}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                            item.keep
-                              ? 'bg-slate-800 border-amber-400/50 text-amber-200'
-                              : 'bg-slate-950 border-slate-800 text-slate-500 line-through'
-                          }`}
-                        >
-                          {item.name}
-                        </span>
-                      ))}
-                    </div>
+                  </div>
+                </div>
+
+                {/* Definition & Goal Boxes */}
+                <div className="space-y-2.5 mb-4">
+                  <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-amber-500/40 shadow-inner">
+                    <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-medium">
+                      <strong className="text-amber-300">การคิดเชิงนามธรรม</strong> คือ{' '}
+                      <strong className="text-cyan-300">
+                        การมองหาสิ่งที่สำคัญจริง ๆ และตัดรายละเอียดที่ไม่จำเป็นออก เหลือเฉพาะสาระสำคัญ เพื่อให้เข้าใจและแก้ปัญหาได้ง่ายขึ้น
+                      </strong>
+                    </p>
                   </div>
 
-                  {/* After Selection */}
-                  <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/50">
-                    <div className="flex items-center justify-between flex-wrap gap-1 mb-2">
-                      <span className="text-xs font-extrabold text-emerald-300">
-                        ✅ ข้อมูลสำคัญ (หลังคัดเลือก) :
+                  <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-cyan-500/40">
+                    <span className="text-xs sm:text-sm font-extrabold text-cyan-300 block mb-1">
+                      🎯 เป้าหมายของการคิดเชิงนามธรรม
+                    </span>
+                    <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
+                      เพื่อโฟกัสข้อมูลที่สำคัญ ลดความซับซ้อน ทำให้เข้าใจง่าย และนำไปใช้แก้ปัญหาได้อย่างมีประสิทธิภาพ
+                    </p>
+                  </div>
+                </div>
+
+                {/* Example Section */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-900 border border-amber-500/40 mb-1">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">
+                    <span className="text-xs sm:text-sm font-extrabold text-amber-300 flex items-center gap-1.5">
+                      <Sparkles size={16} className="text-amber-400" />
+                      ตัวอย่างการคัดเลือกข้อมูลสำคัญ
+                    </span>
+                    <span className="text-xs font-bold text-emerald-300 bg-emerald-950/70 px-3 py-1 rounded-lg border border-emerald-500/40">
+                      🎒 สิ่งของที่จำเป็นสำหรับไปโรงเรียน
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {/* Before Selection */}
+                    <div className="p-3 rounded-xl bg-slate-900/95 border border-slate-800">
+                      <span className="text-xs font-bold text-slate-400 block mb-2">
+                        ข้อมูลทั้งหมด (ก่อนคัดเลือก) :
                       </span>
-                      <span className="text-[11px] text-emerald-200/80 font-mono">
-                        (สิ่งของที่จำเป็นสำหรับไปโรงเรียน)
-                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { name: 'กระเป๋านักเรียน', keep: true },
+                          { name: 'โดนัท', keep: false },
+                          { name: 'ดินสอ', keep: true },
+                          { name: 'นาฬิกา', keep: false },
+                          { name: 'จอยเกม', keep: false },
+                          { name: 'หูฟัง', keep: false },
+                          { name: 'ขวดน้ำ', keep: true },
+                          { name: 'สมุด', keep: true },
+                        ].map((item) => (
+                          <span
+                            key={item.name}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                              item.keep
+                                ? 'bg-slate-800 border-amber-400/50 text-amber-200'
+                                : 'bg-slate-950 border-slate-800 text-slate-500 line-through'
+                            }`}
+                          >
+                            {item.name}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {['กระเป๋านักเรียน', 'สมุด', 'ดินสอ', 'ขวดน้ำ'].map((name) => (
-                        <span
-                          key={name}
-                          className="px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-200 text-xs sm:text-sm font-black shadow-sm"
-                        >
-                          {name}
+
+                    {/* After Selection */}
+                    <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/50">
+                      <div className="flex items-center justify-between flex-wrap gap-1 mb-2">
+                        <span className="text-xs font-extrabold text-emerald-300">
+                          ✅ ข้อมูลสำคัญ (หลังคัดเลือก) :
                         </span>
-                      ))}
+                        <span className="text-[11px] text-emerald-200/80 font-mono">
+                          (สิ่งของที่จำเป็นสำหรับไปโรงเรียน)
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {['กระเป๋านักเรียน', 'สมุด', 'ดินสอ', 'ขวดน้ำ'].map((name) => (
+                          <span
+                            key={name}
+                            className="px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-200 text-xs sm:text-sm font-black shadow-sm"
+                          >
+                            {name}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Button to Enter Abstraction Exercise */}
-              <button
-                onClick={() => {
-                  audioSynth.playSfx('click');
-                  setLevel3ExerciseError(null);
-                  setLevel3LearningStep('exercise');
-                }}
-                className="w-full py-4 px-6 bg-gradient-to-r from-amber-500 via-orange-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base sm:text-lg tracking-wide rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(245,158,11,0.4)] flex items-center justify-center gap-2 cursor-pointer"
-                id="enter-abstraction-exercise-btn"
-              >
-                <span>เข้าสู่แบบฝึกหัด การคิดเชิงนามธรรม (Abstraction)</span>
-                <ArrowRight size={20} />
-              </button>
+              {/* Dedicated Footer Area for Button to Enter Abstraction Exercise */}
+              <div className="pt-3.5 mt-3 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioSynth.playSfx('click');
+                    setLevel3ExerciseError(null);
+                    setLevel3LearningStep('exercise');
+                  }}
+                  className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-500 via-orange-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base sm:text-lg tracking-wide rounded-2xl transition-all duration-300 active:scale-95 shadow-[0_0_20px_rgba(245,158,11,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+                  id="enter-abstraction-exercise-btn"
+                >
+                  <span>เข้าสู่แบบฝึกหัด การคิดเชิงนามธรรม (Abstraction)</span>
+                  <ArrowRight size={20} />
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -3321,7 +3977,12 @@ export default function TravelMissionScreen({
                 </div>
 
                 {/* Two-Column Scenarios on Desktop */}
-                <div className="flex-1 overflow-y-auto mt-3 pr-1">
+                <div
+                  ref={exerciseScrollContainerRef}
+                  onDragOverCapture={handleContainerDragOverAutoScroll}
+                  className="flex-1 overflow-y-scroll drag-scroll-container mt-3 pr-2"
+                >
+                  {renderDragAutoScrollEdgeZone('up')}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
                   {ABSTRACTION_SCENARIOS.map((sc, sIdx) => {
                     const userSlots = abstractionAnswers[sc.key];
@@ -3587,6 +4248,7 @@ export default function TravelMissionScreen({
                     '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): [สถานการณ์ที่ 1 เรียนออนไลน์ที่บ้าน] คอมพิวเตอร์/แท็บเล็ต, อินเทอร์เน็ต, สมุดและปากกา, หูฟังและไมโครโฟน, ตารางเรียนและหนังสือเรียน | [สถานการณ์ที่ 2 เดินป่าศึกษาธรรมชาติ] น้ำดื่มสะอาด, แผนที่และเข็มทิศ, ชุดปฐมพยาบาล, ไฟฉาย, อาหารแห้งและเสบียง',
                     level3ExerciseError
                   )}
+                  {renderDragAutoScrollEdgeZone('down')}
                 </div>
 
                 {/* Footer Actions */}
@@ -3657,10 +4319,10 @@ export default function TravelMissionScreen({
               initial={{ scale: 0.9, opacity: 0, y: 25 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 25 }}
-              className="bg-slate-900 border-2 border-emerald-400/70 rounded-3xl max-w-4xl w-full p-4 sm:p-5 shadow-[0_0_50px_rgba(16,185,129,0.3)] relative my-auto max-h-[95vh] flex flex-col overflow-hidden"
+              className="bg-slate-900 border-2 border-emerald-400/70 rounded-3xl max-w-4xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(16,185,129,0.3)] relative my-auto max-h-[90vh] flex flex-col overflow-hidden"
               id="level4-knowledge-modal"
             >
-              <div className="flex-1 overflow-y-auto pr-1">
+              <div className="flex-1 min-h-0 overflow-y-auto drag-scroll-container pr-1.5">
                 {/* Top Mission Accomplished Badge */}
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold mb-2">
                   <CheckCircle2 size={14} className="text-emerald-400" />
@@ -3853,19 +4515,22 @@ export default function TravelMissionScreen({
                 </div>
               </div>
 
-              {/* Button to Enter Algorithm Design Exercise */}
-              <button
-                onClick={() => {
-                  audioSynth.playSfx('click');
-                  setLevel4ExerciseError(null);
-                  setLevel4LearningStep('exercise');
-                }}
-                className="mt-1.5 w-full py-3 px-6 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-slate-950 font-black text-sm sm:text-base tracking-wide rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer shrink-0"
-                id="enter-algorithm-exercise-btn"
-              >
-                <span>เข้าสู่แบบฝึกหัด การออกแบบอัลกอริทึม (Algorithm Design)</span>
-                <ArrowRight size={20} />
-              </button>
+              {/* Dedicated Footer Area for Button to Enter Algorithm Design Exercise */}
+              <div className="pt-3.5 mt-3 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioSynth.playSfx('click');
+                    setLevel4ExerciseError(null);
+                    setLevel4LearningStep('exercise');
+                  }}
+                  className="w-full py-3.5 px-6 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-slate-950 font-black text-base sm:text-lg tracking-wide rounded-2xl transition-all duration-300 active:scale-95 shadow-[0_0_20px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+                  id="enter-algorithm-exercise-btn"
+                >
+                  <span>เข้าสู่แบบฝึกหัด การออกแบบอัลกอริทึม (Algorithm Design)</span>
+                  <ArrowRight size={20} />
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -3905,26 +4570,26 @@ export default function TravelMissionScreen({
             {
               slotIdx: 3,
               shapeType: 'process',
-              shapeLabel: 'ฝั่งซ้าย ขั้นที่ 1 (Process)',
-              expectedText: 'นั่งรถเมล์',
+              shapeLabel: 'ใช่ (Process)',
+              expectedText: 'นั่งรถมอเตอร์ไซค์',
               guidanceHint:
-                'เส้นทางฝั่งซ้ายมี 2 ขั้นตอนต่อเนื่องกัน (โดยสารรถประจำทางก่อน แล้วจึงเดินต่อเข้าซอย) แนะนำให้เลือกการโดยสารรถประจำทางในช่องแรกของฝั่งซ้าย',
+                'เส้นทาง "ใช่" (มีเงินมากกว่า 20 บาท) เป็นทางเลือกที่มีเพียงขั้นตอนเดียวซึ่งพาไปส่งถึงโรงเรียนได้โดยตรง แนะนำให้เลือกพาหนะที่ใช้ในเส้นทาง "ใช่"',
             },
             {
               slotIdx: 4,
               shapeType: 'process',
-              shapeLabel: 'ฝั่งซ้าย ขั้นที่ 2 (Process)',
-              expectedText: 'เดินเข้าซอย',
+              shapeLabel: 'ไม่ใช่ ขั้นที่ 1 (Process)',
+              expectedText: 'นั่งรถเมล์',
               guidanceHint:
-                'หลังจากลงรถประจำทางในฝั่งซ้ายแล้ว ต้องทำขั้นตอนใดต่อเพื่อเข้าไปยังโรงเรียนที่อยู่ในซอย',
+                'เส้นทาง "ไม่ใช่" (มีเงินไม่มากกว่า 20 บาท) มี 2 ขั้นตอนต่อเนื่องกัน (โดยสารรถประจำทางก่อน แล้วจึงเดินต่อเข้าซอย) แนะนำให้เลือกการโดยสารรถประจำทางในช่องแรกของเส้นทาง "ไม่ใช่"',
             },
             {
               slotIdx: 5,
               shapeType: 'process',
-              shapeLabel: 'ฝั่งขวา (Process)',
-              expectedText: 'นั่งรถมอเตอร์ไซค์',
+              shapeLabel: 'ไม่ใช่ ขั้นที่ 2 (Process)',
+              expectedText: 'เดินเข้าซอย',
               guidanceHint:
-                'เส้นทางฝั่งขวาเป็นทางเลือกที่มีเพียงขั้นตอนเดียวซึ่งพาไปส่งถึงที่ได้โดยตรง แนะนำให้เลือกพาหนะที่ใช้ในฝั่งขวา',
+                'หลังจากลงรถประจำทางในเส้นทาง "ไม่ใช่" แล้ว ต้องทำขั้นตอนใดต่อเพื่อเข้าไปยังโรงเรียนที่อยู่ในซอย',
             },
             {
               slotIdx: 6,
@@ -4216,7 +4881,12 @@ export default function TravelMissionScreen({
                 </div>
 
                 {/* Two-Column Split Body: Left = Choices & Guidance, Right = Flowchart */}
-                <div className="flex-1 overflow-y-auto mt-3.5 pr-1">
+                <div
+                  ref={exerciseScrollContainerRef}
+                  onDragOverCapture={handleContainerDragOverAutoScroll}
+                  className="flex-1 overflow-y-scroll drag-scroll-container mt-3.5 pr-2"
+                >
+                  {renderDragAutoScrollEdgeZone('up')}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                     {/* LEFT SIDE (5 cols): Draggable Choices Bank & Mistake Guidance */}
                     <div className="lg:col-span-5 flex flex-col gap-3.5 lg:sticky lg:top-0">
@@ -4292,8 +4962,8 @@ export default function TravelMissionScreen({
 
                       {renderProgressiveExerciseHintBox(
                         '💡 คำใบ้ที่ 1 (ชวนคิด): สังเกตรูปทรงของสัญลักษณ์ผังงาน (Flowchart) ให้ดี — แคปซูลสีชมพูคือจุดเริ่มต้น/สิ้นสุด, สี่เหลี่ยมผืนผ้าสีส้มคือการกระทำ, และสี่เหลี่ยมขนมเปียกปูนสีเขียวคือการตัดสินใจตามเงื่อนไข!',
-                        '🔍 คำใบ้ที่ 2 (ชี้จุดที่ผิด): ตรวจสอบช่องที่มีกรอบสีแดงหรือยังว่างอยู่ — โดยเฉพาะจุดตัดสินใจ "ถ้าฉันมีเงินมากกว่า 20 บาท" และเส้นทางแยกฝั่งซ้าย (นั่งรถเมล์ ➔ เดินเข้าซอย) กับฝั่งขวา (นั่งรถมอเตอร์ไซค์) ก่อนรวมกันไปถึงโรงเรียน',
-                        '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): ช่องที่ 1: เริ่มต้น ➔ ช่องที่ 2: เดินออกจากบ้าน ➔ ช่องที่ 3 (เงื่อนไข): ถ้าฉันมีเงิน มากกว่า 20 บาท ➔ ฝั่งซ้าย ช่องที่ 4: นั่งรถเมล์ แล้วตามด้วย ช่องที่ 5: เดินเข้าซอย | ฝั่งขวา ช่องที่ 6: นั่งรถมอเตอร์ไซค์ ➔ ช่องที่ 7: ถึงโรงเรียน ➔ ช่องที่ 8: สิ้นสุด',
+                        '🔍 คำใบ้ที่ 2 (ชี้จุดที่ผิด): ตรวจสอบช่องที่มีกรอบสีแดงหรือยังว่างอยู่ — โดยเฉพาะจุดตัดสินใจ "ถ้าฉันมีเงินมากกว่า 20 บาท" และเส้นทางแยก "ใช่" (นั่งรถมอเตอร์ไซค์) กับ "ไม่ใช่" (นั่งรถเมล์ ➔ เดินเข้าซอย) ก่อนรวมกันไปถึงโรงเรียน',
+                        '✨ คำใบ้ที่ 3 (ตัวอย่างแนวคิด): ช่องที่ 1: เริ่มต้น ➔ ช่องที่ 2: เดินออกจากบ้าน ➔ ช่องที่ 3 (เงื่อนไข): ถ้าฉันมีเงิน มากกว่า 20 บาท ➔ ใช่ ช่องที่ 4: นั่งรถมอเตอร์ไซค์ | ไม่ใช่ ช่องที่ 5: นั่งรถเมล์ แล้วตามด้วย ช่องที่ 6: เดินเข้าซอย ➔ ช่องที่ 7: ถึงโรงเรียน ➔ ช่องที่ 8: สิ้นสุด',
                         level4ExerciseError
                       )}
                     </div>
@@ -4315,27 +4985,27 @@ export default function TravelMissionScreen({
                       {/* Slot 2: ถ้าฉันมีเงิน มากกว่า 20 บาท (Decision Diamond) */}
                       {renderFlowchartSlotNode(2)}
 
-                      {/* Left & Right Branching */}
+                      {/* Yes (ใช่) & No (ไม่ใช่) Branching */}
                       <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3.5 mt-1">
-                        {/* Left Branch: นั่งรถเมล์ -> เดินเข้าซอย */}
-                        <div className="flex flex-col items-center p-2 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-                          <div className="text-[11px] font-mono font-bold text-amber-300 mb-1">
-                            ← ฝั่งซ้าย
+                        {/* Left Branch (ใช่): นั่งรถมอเตอร์ไซค์ (1 ช่องตอบ) */}
+                        <div className="flex flex-col items-center justify-between p-2 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+                          <div className="text-[11px] font-mono font-bold text-emerald-300 mb-1">
+                            ← ใช่
                           </div>
-                          {renderFlowchartSlotNode(3)}
-                          <div className="text-cyan-400 font-bold text-xs leading-none my-0.5">↓</div>
-                          {renderFlowchartSlotNode(4)}
+                          <div className="my-auto flex flex-col items-center">
+                            {renderFlowchartSlotNode(3)}
+                          </div>
                           <div className="text-cyan-400 font-bold text-xs mt-0.5">↘</div>
                         </div>
 
-                        {/* Right Branch: นั่งรถมอเตอร์ไซค์ */}
-                        <div className="flex flex-col items-center justify-between p-2 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-                          <div className="text-[11px] font-mono font-bold text-emerald-300 mb-1">
-                            → ฝั่งขวา
+                        {/* Right Branch (ไม่ใช่): นั่งรถเมล์ -> เดินเข้าซอย (2 ช่องตอบ) */}
+                        <div className="flex flex-col items-center p-2 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+                          <div className="text-[11px] font-mono font-bold text-amber-300 mb-1">
+                            → ไม่ใช่
                           </div>
-                          <div className="my-auto flex flex-col items-center">
-                            {renderFlowchartSlotNode(5)}
-                          </div>
+                          {renderFlowchartSlotNode(4)}
+                          <div className="text-cyan-400 font-bold text-xs leading-none my-0.5">↓</div>
+                          {renderFlowchartSlotNode(5)}
                           <div className="text-cyan-400 font-bold text-xs mt-0.5">↙</div>
                         </div>
                       </div>
@@ -4363,6 +5033,7 @@ export default function TravelMissionScreen({
                       {renderFlowchartSlotNode(7)}
                     </div>
                   </div>
+                  {renderDragAutoScrollEdgeZone('down')}
                 </div>
 
                 {/* Footer Actions */}
@@ -4433,10 +5104,10 @@ export default function TravelMissionScreen({
               initial={{ scale: 0.9, opacity: 0, y: 25 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 25 }}
-              className="bg-slate-900 border-2 border-rose-400/70 rounded-3xl max-w-4xl w-full p-4 sm:p-6 shadow-[0_0_50px_rgba(244,63,94,0.3)] relative my-auto max-h-[95vh] flex flex-col overflow-hidden"
+              className="bg-slate-900 border-2 border-rose-400/70 rounded-3xl max-w-4xl w-full p-5 sm:p-6 shadow-[0_0_50px_rgba(244,63,94,0.3)] relative my-auto max-h-[90vh] flex flex-col overflow-hidden"
               id="level5-knowledge-modal"
             >
-              <div className="flex-1 overflow-y-auto pr-1 space-y-3">
+              <div className="flex-1 min-h-0 overflow-y-auto drag-scroll-container pr-1.5 space-y-3">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-950/80 border border-rose-500/50 text-rose-300 text-xs font-bold">
                   <Sparkles size={14} className="text-amber-400" />
                   <span>สรุปทบทวนก่อนทำภารกิจบอส · การบูรณาการแนวคิดเชิงคำนวณทั้ง 4 ด้าน</span>
@@ -4495,19 +5166,21 @@ export default function TravelMissionScreen({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  audioSynth.playSfx('click');
-                  setLevel5ExerciseError(null);
-                  setLevel5LearningStep('exercise');
-                }}
-                className="mt-4 w-full py-3.5 px-6 bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-400 hover:from-rose-400 hover:to-emerald-300 text-slate-950 font-black text-sm sm:text-base tracking-wide rounded-2xl transition-all duration-300 transform hover:scale-[1.01] active:scale-95 shadow-[0_0_25px_rgba(244,63,94,0.4)] flex items-center justify-center gap-2 cursor-pointer shrink-0"
-                id="enter-boss-challenge-btn"
-              >
-                <span>กลับสู่ภารกิจสรุปรวบยอด (Boss Challenge ด่านที่ 5)</span>
-                <ArrowRight size={20} />
-              </button>
+              <div className="pt-3.5 mt-3 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioSynth.playSfx('click');
+                    setLevel5ExerciseError(null);
+                    setLevel5LearningStep('exercise');
+                  }}
+                  className="w-full py-3.5 px-6 bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-400 hover:from-rose-400 hover:to-emerald-300 text-slate-950 font-black text-base sm:text-lg tracking-wide rounded-2xl transition-all duration-300 active:scale-95 shadow-[0_0_20px_rgba(244,63,94,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+                  id="enter-boss-challenge-btn"
+                >
+                  <span>เข้าสู่ภารกิจสรุปรวบยอด (Boss Challenge ด่านที่ 5)</span>
+                  <ArrowRight size={20} />
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
